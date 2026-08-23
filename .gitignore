@@ -1,0 +1,7 @@
+node_modules/
+package-lock.json
+package.json
+sync-data.js
+.DS_Store
+Thumbs.db
+*.tmp

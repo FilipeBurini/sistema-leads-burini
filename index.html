@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CityMap Hub - Mapeador Urbano Interativo</title>
+  <meta name="description" content="Mapeador de locais comerciais, turísticos e de serviços da cidade com pins interativos, rotas e contato direto.">
+
+  <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- RemixIcon (Modern Icons) -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+  <!-- Leaflet MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+  <div class="app-layout">
+    
+    <!-- SIDEBAR DE CONTROLE E LISTAGEM -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-icon">
+            <i class="ri-map-pin-2-fill"></i>
+          </div>
+          <div class="brand-text">
+            <h2>CityMap<span>Hub</span></h2>
+            <p>Guia & Mapeamento Urbano</p>
+          </div>
+        </div>
+        <div class="sidebar-header-actions">
+          <button id="toggleSidebarBtn" class="icon-btn desktop-only" title="Recolher painel">
+            <i class="ri-side-bar-line"></i>
+          </button>
+          <button id="closeSidebarMobileBtn" class="icon-btn mobile-only" title="Fechar painel">
+            <i class="ri-close-line"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- BARRA DE PESQUISA -->
+      <div class="search-section">
+        <div class="search-box">
+          <i class="ri-search-line"></i>
+          <input type="text" id="searchInput" placeholder="Buscar local, endereço ou tag..." autocomplete="off">
+          <button id="clearSearchBtn" class="clear-btn" style="display: none;">
+            <i class="ri-close-line"></i>
+          </button>
+        </div>
+        <button id="locateMeBtn" class="locate-btn" title="Minha Localização Atual">
+          <i class="ri-crosshair-2-line"></i>
+        </button>
+      </div>
+
+      <!-- FILTROS DUPLOS: CATEGORIAS & SUBCATEGORIAS (ESPECIALIDADES) -->
+      <div class="filters-dual-row">
+        <!-- CATEGORIA PRINCIPAL -->
+        <div class="category-dropdown-wrapper">
+          <button class="category-dropdown-btn" id="categoryDropdownBtn">
+            <div class="cat-drop-label">
+              <i class="ri-apps-2-line"></i>
+              <span id="selectedCategoriesText">Categorias</span>
+            </div>
+            <i class="ri-arrow-down-s-line arrow-icon"></i>
+          </button>
+          <div class="category-multiselect-menu" id="categoryMultiselectMenu">
+            <div class="multiselect-header">
+              <span>Categorias</span>
+              <button type="button" id="selectAllCatsBtn">Marcar Todas</button>
+            </div>
+            <div class="multiselect-options">
+              <label class="multiselect-option">
+                <input type="checkbox" value="alimentacao" class="cat-checkbox" checked>
+                <span class="cat-dot" style="background: var(--color-alimentacao)"></span>
+                <span class="cat-name">Gastronomia</span>
+                <b class="badge" id="count-alimentacao">0</b>
+              </label>
+              <label class="multiselect-option">
+                <input type="checkbox" value="comercio" class="cat-checkbox" checked>
+                <span class="cat-dot" style="background: var(--color-comercio)"></span>
+                <span class="cat-name">Comércio</span>
+                <b class="badge" id="count-comercio">0</b>
+              </label>
+              <label class="multiselect-option">
+                <input type="checkbox" value="saude" class="cat-checkbox" checked>
+                <span class="cat-dot" style="background: var(--color-saude)"></span>
+                <span class="cat-name">Saúde</span>
+                <b class="badge" id="count-saude">0</b>
+              </label>
+              <label class="multiselect-option">
+                <input type="checkbox" value="lazer" class="cat-checkbox" checked>
+                <span class="cat-dot" style="background: var(--color-lazer)"></span>
+                <span class="cat-name">Lazer</span>
+                <b class="badge" id="count-lazer">0</b>
+              </label>
+              <label class="multiselect-option">
+                <input type="checkbox" value="servicos" class="cat-checkbox" checked>
+                <span class="cat-dot" style="background: var(--color-servicos)"></span>
+                <span class="cat-name">Serviços</span>
+                <b class="badge" id="count-servicos">0</b>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUBCATEGORIAS (EX: Adega, Cafeteria, Farmácia, Academia...) -->
+        <div class="category-dropdown-wrapper">
+          <button class="category-dropdown-btn" id="subCategoryDropdownBtn">
+            <div class="cat-drop-label">
+              <i class="ri-price-tag-3-line"></i>
+              <span id="selectedSubCategoriesText">Subcategorias</span>
+            </div>
+            <i class="ri-arrow-down-s-line arrow-icon"></i>
+          </button>
+          <div class="category-multiselect-menu" id="subCategoryMultiselectMenu">
+            <div class="multiselect-header">
+              <span>Subcategorias</span>
+              <button type="button" id="selectAllSubCatsBtn">Marcar Todas</button>
+            </div>
+            <div class="multiselect-options" id="subCategoryOptionsList">
+              <!-- Injetado dinamicamente com base nas subcategorias reais cadastradas -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AÇÕES RÁPIDAS -->
+      <div class="quick-actions">
+        <button id="openAddModalBtn" class="btn btn-primary">
+          <i class="ri-add-circle-fill"></i>
+          <span>Novo Local</span>
+        </button>
+        <button id="openRoutePlannerBtn" class="btn btn-route-planner" title="Criar Rota com Múltiplos Pontos">
+          <i class="ri-route-fill"></i>
+          <span>Criar Rota</span>
+        </button>
+        <div class="action-dropdown">
+          <button id="dataOptionsBtn" class="btn btn-secondary icon-only" title="Opções de Dados (Backup/Importar)">
+            <i class="ri-more-2-fill"></i>
+          </button>
+          <div class="dropdown-menu" id="dataDropdownMenu">
+            <button id="triggerApifyImportBtn" class="text-success"><i class="ri-file-excel-2-line"></i> Importar Planilha Apify (XLSX / CSV)</button>
+            <button id="exportDefaultPlacesBtn" class="text-warning" style="color: #facc15;"><i class="ri-git-branch-line"></i> Baixar default-places.json (para Git)</button>
+            <button id="exportDataBtn"><i class="ri-download-2-line"></i> Exportar Backup com Data (JSON)</button>
+            <button id="triggerImportBtn"><i class="ri-upload-2-line"></i> Importar Backup (JSON)</button>
+            <button id="resetDataBtn" class="text-danger"><i class="ri-restart-line"></i> Restaurar Padrões</button>
+            <input type="file" id="importFileInput" accept=".json" style="display: none;">
+            <input type="file" id="importApifyFileInput" accept=".xlsx, .xls, .csv" style="display: none;">
+          </div>
+        </div>
+      </div>
+
+      <!-- LISTA DE LOCAIS -->
+      <div class="places-container">
+        <div class="places-header">
+          <span class="places-count" id="placesCountText">Carregando locais...</span>
+          <div class="sort-selector">
+            <i class="ri-sort-desc"></i>
+            <select id="sortPlacesSelect">
+              <option value="name-asc">Nome (A - Z)</option>
+              <option value="name-desc">Nome (Z - A)</option>
+              <option value="rating-desc">Melhor Avaliados</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="places-list" id="placesList">
+          <!-- Os cards de locais são injetados dinamicamente via Javascript -->
+        </div>
+      </div>
+
+      <!-- RODAPÉ DA SIDEBAR -->
+      <div class="sidebar-footer">
+        <div class="map-style-toggle">
+          <span>Estilo do Mapa</span>
+          <div class="style-buttons">
+            <button class="map-theme-btn active" data-tiles="dark" title="Tema Escuro"><i class="ri-moon-fill"></i></button>
+            <button class="map-theme-btn" data-tiles="voyager" title="Tema Claro / Colorido"><i class="ri-sun-fill"></i></button>
+            <button class="map-theme-btn" data-tiles="satellite" title="Satélite"><i class="ri-earth-fill"></i></button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL DO MAPA -->
+    <main class="map-wrapper">
+      <!-- MAP CONTAINER -->
+      <div id="map"></div>
+
+      <!-- BOTÃO FLUTUANTE MOBILE DE ABRIR SIDEBAR / LISTA -->
+      <button class="mobile-toggle-btn" id="mobileToggleSidebarBtn">
+        <i class="ri-list-check-2"></i>
+        <span>Ver Locais (<span id="mobilePlacesCount">0</span>)</span>
+      </button>
+
+      <!-- DICA FLUTUANTE DE ADICIONAR LOCAL -->
+      <div class="map-tip-toast">
+        <i class="ri-information-line"></i>
+        <span>Dica: Clique com o botão direito em qualquer ponto do mapa para cadastrar um novo local ali.</span>
+      </div>
+
+      <!-- PAINEL LATERAL DE DETALHES RÁPIDOS DO LOCAL (QUANDO CLICA NO PIN) -->
+      <div class="place-detail-drawer" id="placeDetailDrawer">
+        <button class="close-drawer-btn" id="closeDrawerBtn">
+          <i class="ri-close-line"></i>
+        </button>
+        <div class="drawer-content" id="drawerContent">
+          <!-- Injetado dinamicamente -->
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- MODAL: CADASTRAR / EDITAR LOCAL -->
+  <div class="modal-overlay" id="placeModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <i class="ri-map-pin-add-fill"></i>
+          <h3 id="modalTitle">Cadastrar Novo Local</h3>
+        </div>
+        <button class="modal-close-btn" id="closePlaceModalBtn">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <form id="placeForm" class="modal-form">
+        <input type="hidden" id="placeId">
+        
+        <div class="form-row">
+          <div class="form-group flex-2">
+            <label for="placeName">Nome do Local *</label>
+            <input type="text" id="placeName" required placeholder="Ex: Hamburgueria Artesanal">
+          </div>
+          <div class="form-group flex-1">
+            <label for="placeCategory">Categoria *</label>
+            <select id="placeCategory" required>
+              <option value="alimentacao">Gastronomia</option>
+              <option value="comercio">Comércio</option>
+              <option value="saude">Saúde</option>
+              <option value="lazer">Lazer</option>
+              <option value="servicos">Serviços</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="placeAddress">Endereço Completo *</label>
+          <div class="input-with-action">
+            <input type="text" id="placeAddress" required placeholder="Ex: Rua Floriano Peixoto, 120 - Centro">
+            <button type="button" id="geocodeAddressBtn" class="btn btn-secondary btn-sm" title="Buscar coordenadas pelo endereço">
+              <i class="ri-crosshair-line"></i> Obter Coordenadas
+            </button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="placeLat">Latitude *</label>
+            <input type="number" step="any" id="placeLat" required placeholder="-20.5385">
+          </div>
+          <div class="form-group flex-1">
+            <label for="placeLng">Longitude *</label>
+            <input type="number" step="any" id="placeLng" required placeholder="-47.4009">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="placePhone">Telefone Fixo / Comercial</label>
+            <input type="text" id="placePhone" placeholder="(16) 3700-0000">
+          </div>
+          <div class="form-group flex-1">
+            <label for="placeWhatsapp">WhatsApp (somente números)</label>
+            <input type="text" id="placeWhatsapp" placeholder="5516999998888">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-2">
+            <label for="placeHours">Horário de Funcionamento</label>
+            <input type="text" id="placeHours" placeholder="Ex: Seg a Sex: 08h às 18h">
+          </div>
+          <div class="form-group flex-1">
+            <label for="placeRating">Avaliação (1 a 5)</label>
+            <input type="number" step="0.1" min="1" max="5" id="placeRating" value="5.0">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="placePhoto">Foto do Local (URL da imagem)</label>
+          <div class="input-with-action">
+            <input type="url" id="placePhoto" placeholder="https://images.unsplash.com/...">
+            <label class="btn btn-secondary btn-sm file-upload-label" title="Fazer upload de foto do computador">
+              <i class="ri-image-add-line"></i> Upload Foto
+              <input type="file" id="photoFileInput" accept="image/*" style="display:none;">
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="placeDescription">Descrição do Local</label>
+          <textarea id="placeDescription" rows="3" placeholder="Conte mais sobre os produtos, serviços, destaques do ambiente..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="placeTags">Tags / Palavras-chave (separadas por vírgula)</label>
+          <input type="text" id="placeTags" placeholder="Ex: Wifi, Estacionamento, Ar Condicionado, Delivery">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelPlaceBtn">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="savePlaceBtn">
+            <i class="ri-save-line"></i> Salvar Local
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CONSTRUTOR DE ROTAS PERSONALIZADAS -->
+  <div class="modal-overlay" id="routeModal">
+    <div class="modal-card route-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <i class="ri-route-fill" style="color: #10b981;"></i>
+          <h3>Planejador de Rotas & Itinerários</h3>
+        </div>
+        <button class="modal-close-btn" id="closeRouteModalBtn">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <div class="route-modal-body">
+        <p class="route-intro">Selecione e ordene os locais mapeados para traçar um roteiro completo no mapa e navegar diretamente pelo Google Maps.</p>
+
+        <!-- SELETOR PARA ADICIONAR PARADA -->
+        <div class="add-stop-row">
+          <select id="routePlaceSelector">
+            <option value="">-- Escolha um local cadastrado para adicionar à rota --</option>
+          </select>
+          <button id="addStopBtn" class="btn btn-secondary">
+            <i class="ri-add-line"></i> Adicionar Ponto
+          </button>
+        </div>
+
+        <!-- LISTA DE PONTOS DA ROTA -->
+        <div class="route-stops-list" id="routeStopsList">
+          <!-- Injetado dinamicamente -->
+        </div>
+
+        <!-- RESUMO DA ROTA E OTIMIZADOR -->
+        <div class="route-summary" id="routeSummary" style="display: none;">
+          <div class="summary-info-wrap">
+            <div class="summary-item">
+              <i class="ri-map-pin-range-line"></i>
+              <span id="routeStopsCount">0 paradas</span>
+            </div>
+            <div class="summary-item">
+              <i class="ri-compass-3-line"></i>
+              <span id="routeTotalDist">Distância estimada: ~0 km</span>
+            </div>
+          </div>
+          <button id="optimizeRouteBtn" class="btn btn-optimize" title="Reorganizar automaticamente na melhor sequência para economizar tempo">
+            <i class="ri-magic-line"></i> Otimizar Trajeto Mais Fácil
+          </button>
+        </div>
+
+        <!-- BOTÕES DE AÇÃO E EXPORTAÇÃO PARA O GOOGLE MAPS -->
+        <div class="route-export-actions">
+          <button id="openGoogleMapsRouteBtn" class="btn btn-google-maps" disabled>
+            <i class="ri-google-fill"></i> Iniciar Rota no Google Maps
+          </button>
+          <button id="drawRouteOnMapBtn" class="btn btn-primary" disabled>
+            <i class="ri-road-map-line"></i> Traçar Rota no Mapa
+          </button>
+          <button id="clearRouteBtn" class="btn btn-secondary" title="Limpar todos os pontos">
+            <i class="ri-delete-bin-line"></i> Limpar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST DE NOTIFICAÇÃO -->
+  <div class="toast" id="toast">
+    <i class="toast-icon ri-checkbox-circle-fill"></i>
+    <span class="toast-message">Notificação</span>
+  </div>
+
+  <!-- SheetJS (Leitor de arquivos XLSX / Excel / CSV no navegador) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Leaflet JS & Plugins -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <!-- App Core JS -->
+  <script src="app.js"></script>
+</body>
+</html>
