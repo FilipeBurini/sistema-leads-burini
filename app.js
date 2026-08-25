@@ -11,11 +11,18 @@ const AppState = {
   filteredPlaces: [],
   selectedCategories: ['alimentacao', 'comercio', 'saude', 'lazer', 'servicos'],
   selectedSubCategories: [], // Vazio significa todas as disponíveis
-  availableSubCategories: [],
+  visitedFilter: 'unvisited', // 'unvisited' (padrão - apenas não visitados), 'visited' (apenas visitados), 'all' (todos)
+  selectedCardMachines: [], // Vazio significa todas as disponíveis
+  availableCardMachines: ['Stone', 'Cielo', 'Rede', 'PagBank', 'Getnet', 'SafraPay', 'InfinitePay', 'Mercado Pago', 'Ton', 'C6 Bank', 'Outra', 'Não Informado'],
   searchQuery: '',
   activePlaceId: null,
   currentTileLayer: 'dark',
   userCoordinates: null,
+  userAccuracy: null,
+  userMarker: null,
+  userAccuracyCircle: null,
+  userLocationWatchId: null,
+  isTrackingLive: false,
   map: null,
   markersGroup: null,
   tileLayers: {},
@@ -128,12 +135,12 @@ function updateUI() {
   renderMapMarkers();
   updateCategoryCounts();
   renderSubCategoryOptions();
+  renderCardMachineOptions();
 }
 
 function extractSubCategories() {
   const subSet = new Set();
   
-  // Garantir que todos os locais tenham uma subcategoria (inferindo da descrição ou tags se necessário)
   AppState.places.forEach(p => {
     if (!p.subCategory) {
       if (p.tags && p.tags.length > 0) {
@@ -145,7 +152,6 @@ function extractSubCategories() {
       }
     }
 
-    // Apenas extrai subcategorias que pertencem às categorias principais ativas
     if (AppState.selectedCategories.includes(p.category)) {
       subSet.add(p.subCategory.trim());
     }
@@ -153,7 +159,6 @@ function extractSubCategories() {
 
   AppState.availableSubCategories = Array.from(subSet).sort((a, b) => a.localeCompare(b));
   
-  // Se ainda não tiver nenhuma selecionada, ou se as selecionadas não existem mais, marca todas as disponíveis
   const validSelected = AppState.selectedSubCategories.filter(s => AppState.availableSubCategories.includes(s));
   if (validSelected.length === 0 && AppState.availableSubCategories.length > 0) {
     AppState.selectedSubCategories = [...AppState.availableSubCategories];
@@ -166,19 +171,43 @@ function filterPlaces() {
   const query = AppState.searchQuery.toLowerCase().trim();
   const selectedCats = AppState.selectedCategories;
   const selectedSubs = AppState.selectedSubCategories;
+  const visitedMode = AppState.visitedFilter;
+  const selectedMachines = AppState.selectedCardMachines;
 
   AppState.filteredPlaces = AppState.places.filter(place => {
+    // 1. Categoria Principal
     const matchCategory = selectedCats.includes(place.category);
+
+    // 2. Subcategoria
     const matchSubCategory = selectedSubs.length === 0 || !place.subCategory || selectedSubs.includes(place.subCategory.trim());
     
+    // 3. Status CRM de Visita (Oculta visitados no modo 'unvisited')
+    const isVisited = !!place.visited;
+    let matchVisited = true;
+    if (visitedMode === 'unvisited') {
+      matchVisited = !isVisited;
+    } else if (visitedMode === 'visited') {
+      matchVisited = isVisited;
+    }
+
+    // 4. Maquininha de Cartão
+    let matchMachine = true;
+    if (selectedMachines.length > 0) {
+      const machine = place.cardMachine || 'Não Informado';
+      matchMachine = selectedMachines.includes(machine);
+    }
+
+    // 5. Pesquisa Textual
     const matchSearch = !query || 
       place.name.toLowerCase().includes(query) ||
       place.address.toLowerCase().includes(query) ||
+      (place.cardMachine && place.cardMachine.toLowerCase().includes(query)) ||
+      (place.crmNotes && place.crmNotes.toLowerCase().includes(query)) ||
       (place.subCategory && place.subCategory.toLowerCase().includes(query)) ||
       (place.description && place.description.toLowerCase().includes(query)) ||
       (place.tags && place.tags.some(tag => tag.toLowerCase().includes(query)));
 
-    return matchCategory && matchSubCategory && matchSearch;
+    return matchCategory && matchSubCategory && matchVisited && matchMachine && matchSearch;
   });
 
   // Ordenação
@@ -193,9 +222,22 @@ function filterPlaces() {
 
 function updateCategoryCounts() {
   const counts = { alimentacao: 0, comercio: 0, saude: 0, lazer: 0, servicos: 0 };
+  let unvisitedCount = 0;
+  let visitedCount = 0;
+
   AppState.places.forEach(p => {
     if (counts[p.category] !== undefined) counts[p.category]++;
+    if (p.visited) visitedCount++;
+    else unvisitedCount++;
   });
+
+  // Atualizar badges CRM de visitas
+  const unvEl = document.getElementById('count-unvisited');
+  if (unvEl) unvEl.textContent = unvisitedCount;
+  const visEl = document.getElementById('count-visited');
+  if (visEl) visEl.textContent = visitedCount;
+  const allEl = document.getElementById('count-all');
+  if (allEl) allEl.textContent = AppState.places.length;
 
   Object.keys(counts).forEach(cat => {
     const el = document.getElementById(`count-${cat}`);
@@ -228,6 +270,18 @@ function updateCategoryCounts() {
     }
   }
 
+  // Atualizar texto do dropdown de maquininhas
+  const machineDropText = document.getElementById('selectedMachinesText');
+  if (machineDropText) {
+    if (AppState.selectedCardMachines.length === 0) {
+      machineDropText.textContent = 'Todas as Maquininhas';
+    } else if (AppState.selectedCardMachines.length === 1) {
+      machineDropText.textContent = AppState.selectedCardMachines[0];
+    } else {
+      machineDropText.textContent = `${AppState.selectedCardMachines.length} Maquininhas`;
+    }
+  }
+
   document.getElementById('placesCountText').textContent = `${AppState.filteredPlaces.length} locais encontrados`;
   const mobileCount = document.getElementById('mobilePlacesCount');
   if (mobileCount) mobileCount.textContent = AppState.filteredPlaces.length;
@@ -242,7 +296,6 @@ function renderSubCategoryOptions() {
     return;
   }
 
-  // Contagem por subcategoria
   const subCounts = {};
   AppState.places.forEach(p => {
     if (p.subCategory) {
@@ -270,13 +323,58 @@ function renderSubCategoryOptions() {
     `;
   }).join('');
 
-  // Eventos dos checkboxes de subcategoria
   container.querySelectorAll('.subcat-checkbox').forEach(cb => {
     cb.addEventListener('change', () => {
       AppState.selectedSubCategories = Array.from(container.querySelectorAll('.subcat-checkbox'))
         .filter(c => c.checked)
         .map(c => c.value);
       
+      filterPlaces();
+      renderPlacesList();
+      renderMapMarkers();
+      updateCategoryCounts();
+    });
+  });
+}
+
+function renderCardMachineOptions() {
+  const container = document.getElementById('machineOptionsList');
+  if (!container) return;
+
+  const machineCounts = {};
+  AppState.places.forEach(p => {
+    const m = p.cardMachine || 'Não Informado';
+    machineCounts[m] = (machineCounts[m] || 0) + 1;
+  });
+
+  const machines = [
+    'Stone', 'Cielo', 'Rede', 'PagBank', 'Getnet',
+    'SafraPay', 'InfinitePay', 'Mercado Pago', 'Ton',
+    'C6 Bank', 'Outra', 'Não Informado'
+  ];
+
+  container.innerHTML = machines.map(m => {
+    const isChecked = AppState.selectedCardMachines.length === 0 || AppState.selectedCardMachines.includes(m);
+    const count = machineCounts[m] || 0;
+
+    return `
+      <label class="multiselect-option">
+        <input type="checkbox" value="${escapeHtml(m)}" class="machine-checkbox" ${isChecked ? 'checked' : ''}>
+        <span class="cat-name">${escapeHtml(m)}</span>
+        <b class="badge">${count}</b>
+      </label>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.machine-checkbox').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const checkedBoxes = Array.from(container.querySelectorAll('.machine-checkbox:checked')).map(c => c.value);
+      if (checkedBoxes.length === machines.length || checkedBoxes.length === 0) {
+        AppState.selectedCardMachines = [];
+      } else {
+        AppState.selectedCardMachines = checkedBoxes;
+      }
+
       filterPlaces();
       renderPlacesList();
       renderMapMarkers();
@@ -302,12 +400,21 @@ function renderPlacesList() {
   container.innerHTML = AppState.filteredPlaces.map(place => {
     const catName = AppState.categoryNames[place.category] || place.category;
     const isActive = place.id === AppState.activePlaceId ? 'active' : '';
+    const isVisited = !!place.visited;
+    const machineBadge = place.cardMachine ? `<span class="mini-machine-badge" title="Maquininha: ${escapeHtml(place.cardMachine)}"><i class="ri-bank-card-line"></i> ${escapeHtml(place.cardMachine)}</span>` : '';
+    const visitedBadge = isVisited 
+      ? `<span class="crm-list-dot visited" title="Já Visitado"><i class="ri-checkbox-circle-fill"></i></span>`
+      : `<span class="crm-list-dot pending" title="A Visitar"><i class="ri-checkbox-blank-circle-line"></i></span>`;
 
     return `
-      <div class="place-item ${isActive}" data-id="${place.id}" onclick="selectPlace('${place.id}', true)">
+      <div class="place-item ${isActive} ${isVisited ? 'place-visited' : ''}" data-id="${place.id}" onclick="selectPlace('${place.id}', true)">
         <div class="place-item-left">
+          ${visitedBadge}
           <span class="place-item-dot" style="background: var(--color-${place.category}, var(--color-primary))"></span>
-          <span class="place-item-name" title="${escapeHtml(place.name)}">${escapeHtml(place.name)}</span>
+          <div class="place-item-info">
+            <span class="place-item-name" title="${escapeHtml(place.name)}">${escapeHtml(place.name)}</span>
+            ${machineBadge}
+          </div>
         </div>
         <span class="place-item-badge" style="background: var(--color-${place.category}, var(--color-primary))">${catName}</span>
       </div>
@@ -320,13 +427,15 @@ function renderMapMarkers() {
 
   AppState.filteredPlaces.forEach(place => {
     const iconClass = AppState.categoryIcons[place.category] || 'ri-map-pin-fill';
+    const isVisited = !!place.visited;
     
-    // Criação do Ícone Customizado HTML
+    // Criação do Ícone Customizado HTML com badge de visitado
     const customIcon = L.divIcon({
-      className: `custom-map-pin pin-${place.category}`,
+      className: `custom-map-pin pin-${place.category} ${isVisited ? 'is-visited' : ''}`,
       html: `
         <div class="pin-icon-wrap">
           <i class="${iconClass}"></i>
+          ${isVisited ? '<span class="pin-visited-badge"><i class="ri-check-fill"></i></span>' : ''}
         </div>
       `,
       iconSize: [38, 38],
@@ -336,20 +445,7 @@ function renderMapMarkers() {
 
     const marker = L.marker([place.lat, place.lng], { icon: customIcon });
 
-    // Popup rápido ao clicar
-    const photo = place.photo || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&auto=format&fit=crop&q=60';
-    const popupHtml = `
-      <div class="popup-card">
-        <div class="popup-img" style="background-image: url('${escapeHtml(photo)}')"></div>
-        <div class="popup-info">
-          <div class="popup-cat">${AppState.categoryNames[place.category] || place.category}</div>
-          <div class="popup-title">${escapeHtml(place.name)}</div>
-          <button class="popup-btn" onclick="selectPlace('${place.id}', false)">Ver Detalhes Completos</button>
-        </div>
-      </div>
-    `;
-
-    marker.bindPopup(popupHtml, { minWidth: 240, maxWidth: 260 });
+    // Ao clicar no pin, abre diretamente o painel completo de detalhes do local
     marker.on('click', () => {
       selectPlace(place.id, false);
     });
@@ -420,6 +516,51 @@ window.selectPlace = function(placeId, zoomIn = false) {
 
       ${tagsHtml ? `<div class="drawer-tags-wrap">${tagsHtml}</div>` : ''}
 
+      <!-- BLOCO CRM & NEGOCIAÇÃO DE MAQUININHA -->
+      <div class="drawer-crm-card">
+        <div class="crm-card-header">
+          <span class="crm-badge ${place.visited ? 'status-visited' : 'status-pending'}">
+            <i class="${place.visited ? 'ri-checkbox-circle-fill' : 'ri-time-line'}"></i>
+            ${place.visited ? 'Visitado' : 'A Visitar'}
+          </span>
+          ${place.visitedAt ? `<span class="crm-visit-date"><i class="ri-calendar-line"></i> ${new Date(place.visitedAt).toLocaleDateString('pt-BR')}</span>` : ''}
+        </div>
+
+        <button class="btn btn-crm-toggle ${place.visited ? 'visited' : ''}" onclick="togglePlaceVisited('${place.id}')">
+          <i class="${place.visited ? 'ri-arrow-go-back-line' : 'ri-checkbox-circle-fill'}"></i>
+          <span>${place.visited ? 'Desmarcar Visita (Voltar para A Visitar)' : 'Marcar como Visitado ✔'}</span>
+        </button>
+
+        <div class="crm-machine-box">
+          <div class="machine-label">
+            <i class="ri-bank-card-fill"></i>
+            <span>Maquininha Utilizada:</span>
+          </div>
+          <select class="crm-machine-select" onchange="updatePlaceCardMachine('${place.id}', this.value)">
+            <option value="" ${!place.cardMachine ? 'selected' : ''}>❓ Não Informado</option>
+            <option value="Stone" ${place.cardMachine === 'Stone' ? 'selected' : ''}>🟢 Stone</option>
+            <option value="Cielo" ${place.cardMachine === 'Cielo' ? 'selected' : ''}>🔵 Cielo</option>
+            <option value="Rede" ${place.cardMachine === 'Rede' ? 'selected' : ''}>🟠 Rede</option>
+            <option value="PagBank" ${place.cardMachine === 'PagBank' ? 'selected' : ''}>🟡 PagBank / PagSeguro</option>
+            <option value="Getnet" ${place.cardMachine === 'Getnet' ? 'selected' : ''}>🔴 Getnet</option>
+            <option value="SafraPay" ${place.cardMachine === 'SafraPay' ? 'selected' : ''}>🟣 SafraPay</option>
+            <option value="InfinitePay" ${place.cardMachine === 'InfinitePay' ? 'selected' : ''}>⚡ InfinitePay</option>
+            <option value="Mercado Pago" ${place.cardMachine === 'Mercado Pago' ? 'selected' : ''}>🔹 Mercado Pago</option>
+            <option value="Ton" ${place.cardMachine === 'Ton' ? 'selected' : ''}>🟩 Ton</option>
+            <option value="C6 Bank" ${place.cardMachine === 'C6 Bank' ? 'selected' : ''}>⬛ C6 Bank</option>
+            <option value="Outra" ${place.cardMachine === 'Outra' ? 'selected' : ''}>⚪ Outra</option>
+          </select>
+        </div>
+
+        <div class="crm-notes-box">
+          <div class="notes-header">
+            <i class="ri-file-edit-line"></i>
+            <span>Anotações da Visita / Negociação:</span>
+          </div>
+          <textarea class="crm-notes-input" placeholder="Ex: Falei com o proprietário João, taxa atual 2.1%, retorno na sexta..." onblur="savePlaceCrmNotes('${place.id}', this.value)">${escapeHtml(place.crmNotes || '')}</textarea>
+        </div>
+      </div>
+
       <div class="drawer-actions-grid">
         <a href="${googleMapsRouteUrl}" target="_blank" class="btn btn-route">
           <i class="ri-navigation-fill"></i> Como Chegar
@@ -486,6 +627,9 @@ function openAddModal(placeId = null, defaultLat = null, defaultLng = null) {
       document.getElementById('placeRating').value = place.rating || 5.0;
       document.getElementById('placePhoto').value = place.photo || '';
       document.getElementById('placeDescription').value = place.description || '';
+      document.getElementById('placeCardMachine').value = place.cardMachine || '';
+      document.getElementById('placeVisited').value = place.visited ? 'true' : 'false';
+      document.getElementById('placeCrmNotes').value = place.crmNotes || '';
       document.getElementById('placeTags').value = (place.tags || []).join(', ');
     }
   } else {
@@ -883,12 +1027,10 @@ function setupEventListeners() {
     const areAllChecked = AppState.selectedCategories.length === allCategoriesList.length;
 
     if (areAllChecked) {
-      // Se todas já estavam marcadas, desmarca todas
       AppState.selectedCategories = [];
       catCheckboxes.forEach(cb => cb.checked = false);
       selectAllCatsBtn.textContent = 'Marcar Todas';
     } else {
-      // Se alguma ou nenhuma estava marcada, marca todas
       AppState.selectedCategories = [...allCategoriesList];
       catCheckboxes.forEach(cb => cb.checked = true);
       selectAllCatsBtn.textContent = 'Desmarcar Todas';
@@ -916,7 +1058,8 @@ function setupEventListeners() {
 
   subCatDropBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    catMenu.classList.remove('show'); // fecha o outro
+    catMenu.classList.remove('show');
+    if (machineMenu) machineMenu.classList.remove('show');
     subCatMenu.classList.toggle('show');
   });
 
@@ -924,6 +1067,49 @@ function setupEventListeners() {
     if (!subCatMenu.contains(e.target) && !subCatDropBtn.contains(e.target)) {
       subCatMenu.classList.remove('show');
     }
+  });
+
+  // Dropdown Multiselect de Maquininhas
+  const machineDropBtn = document.getElementById('machineDropdownBtn');
+  const machineMenu = document.getElementById('machineMultiselectMenu');
+
+  if (machineDropBtn && machineMenu) {
+    machineDropBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      catMenu.classList.remove('show');
+      subCatMenu.classList.remove('show');
+      machineMenu.classList.toggle('show');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!machineMenu.contains(e.target) && !machineDropBtn.contains(e.target)) {
+        machineMenu.classList.remove('show');
+      }
+    });
+
+    document.getElementById('selectAllMachinesBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      AppState.selectedCardMachines = [];
+      document.querySelectorAll('.machine-checkbox').forEach(cb => cb.checked = true);
+      updateUI();
+    });
+
+    document.getElementById('clearAllMachinesBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      AppState.selectedCardMachines = ['__NONE__'];
+      document.querySelectorAll('.machine-checkbox').forEach(cb => cb.checked = false);
+      updateUI();
+    });
+  }
+
+  // Tabs de Controle CRM de Visitas (A Visitar / Visitados / Todos)
+  document.querySelectorAll('#crmStatusTabs .crm-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('#crmStatusTabs .crm-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      AppState.visitedFilter = tab.dataset.visited;
+      updateUI();
+    });
   });
 
   // Botão Marcar/Desmarcar Todas Subcategorias
@@ -986,6 +1172,9 @@ function setupEventListeners() {
     const rating = document.getElementById('placeRating').value;
     const photo = document.getElementById('placePhoto').value.trim();
     const description = document.getElementById('placeDescription').value.trim();
+    const cardMachine = document.getElementById('placeCardMachine').value;
+    const visited = document.getElementById('placeVisited').value === 'true';
+    const crmNotes = document.getElementById('placeCrmNotes').value.trim();
     const tagsInput = document.getElementById('placeTags').value.trim();
     const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [];
 
@@ -995,7 +1184,9 @@ function setupEventListeners() {
       if (index !== -1) {
         AppState.places[index] = {
           ...AppState.places[index],
-          name, category, address, lat, lng, phone, whatsapp, hours, rating, photo, description, tags
+          name, category, address, lat, lng, phone, whatsapp, hours, rating, photo, description, tags,
+          cardMachine, visited, crmNotes,
+          visitedAt: visited ? (AppState.places[index].visitedAt || new Date().toISOString()) : undefined
         };
         showToast('Local atualizado com sucesso!');
       }
@@ -1003,7 +1194,9 @@ function setupEventListeners() {
       // Novo
       const newPlace = {
         id: 'place-' + Date.now(),
-        name, category, address, lat, lng, phone, whatsapp, hours, rating, photo, description, tags
+        name, category, address, lat, lng, phone, whatsapp, hours, rating, photo, description, tags,
+        cardMachine, visited, crmNotes,
+        visitedAt: visited ? new Date().toISOString() : undefined
       };
       AppState.places.unshift(newPlace);
       showToast('Novo local cadastrado com sucesso!');
@@ -1020,36 +1213,13 @@ function setupEventListeners() {
     }
   });
 
-  // Localização do Usuário (Geolocalização)
-  document.getElementById('locateMeBtn').addEventListener('click', () => {
-    if ('geolocation' in navigator) {
-      showToast('Obtendo sua localização...');
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          AppState.userCoordinates = [latitude, longitude];
-          AppState.map.flyTo([latitude, longitude], 15);
-          
-          L.circleMarker([latitude, longitude], {
-            radius: 8,
-            fillColor: '#3b82f6',
-            color: '#ffffff',
-            weight: 3,
-            opacity: 1,
-            fillOpacity: 0.9
-          }).addTo(AppState.map).bindPopup('<b>Você está aqui</b>').openPopup();
-
-          showToast('Localização encontrada!');
-        },
-        (err) => {
-          console.error(err);
-          showToast('Não foi possível obter sua localização.');
-        }
-      );
-    } else {
-      showToast('Geolocalização não suportada pelo navegador.');
-    }
-  });
+  // Localização do Usuário (Geolocalização em Tempo Real Contínua)
+  const locateMeBtn = document.getElementById('locateMeBtn');
+  if (locateMeBtn) {
+    locateMeBtn.addEventListener('click', () => {
+      toggleLiveLocationTracking();
+    });
+  }
 
   // Troca de Estilos do Mapa
   document.querySelectorAll('.map-theme-btn').forEach(btn => {
@@ -1290,6 +1460,10 @@ function parseApifyRows(rows) {
     if (row['city']) tags.push(row['city']);
     if (row['neighborhood']) tags.push(row['neighborhood']);
 
+    const cardMachine = row['cardMachine'] || row['maquininha'] || row['pos'] || '';
+    const visited = row['visited'] === true || row['visited'] === 'true' || row['visitado'] === 'sim' || row['visitado'] === true;
+    const crmNotes = row['crmNotes'] || row['notas'] || row['observacoes'] || '';
+
     places.push({
       id: 'apify-' + (row['id'] || Date.now() + '-' + idx),
       name: String(name).trim(),
@@ -1304,6 +1478,9 @@ function parseApifyRows(rows) {
       rating: String(rating),
       photo: String(photo).trim(),
       description,
+      cardMachine,
+      visited,
+      crmNotes,
       tags
     });
   });
@@ -1328,3 +1505,206 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// --- RASTREAMENTO EM TEMPO REAL CONTÍNUO (LIVE GEOLOCATION) ---
+function toggleLiveLocationTracking() {
+  if (!('geolocation' in navigator)) {
+    showToast('Geolocalização não é suportada pelo seu navegador.');
+    return;
+  }
+
+  if (AppState.isTrackingLive) {
+    if (AppState.userCoordinates) {
+      AppState.map.flyTo(AppState.userCoordinates, Math.max(AppState.map.getZoom(), 16), {
+        animate: true,
+        duration: 1
+      });
+      if (AppState.userMarker) {
+        AppState.userMarker.openPopup();
+      }
+      showToast('Centralizado na sua localização em tempo real!');
+    }
+  } else {
+    startLiveLocationTracking(true);
+  }
+}
+
+function startLiveLocationTracking(autoCenter = true) {
+  if (!('geolocation' in navigator)) return;
+
+  const locateBtn = document.getElementById('locateMeBtn');
+  if (locateBtn) {
+    locateBtn.classList.add('tracking-active');
+    locateBtn.setAttribute('title', 'Rastreamento em tempo real ATIVO (Clique para centralizar)');
+  }
+
+  AppState.isTrackingLive = true;
+  showToast('Iniciando rastreamento em tempo real...');
+
+  const geoOptions = {
+    enableHighAccuracy: true,
+    maximumAge: 3000,
+    timeout: 25000
+  };
+
+  if (AppState.userLocationWatchId !== null) {
+    navigator.geolocation.clearWatch(AppState.userLocationWatchId);
+  }
+
+  let isFirstFix = true;
+
+  AppState.userLocationWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const isFirst = !AppState.userCoordinates;
+      AppState.userCoordinates = [latitude, longitude];
+      AppState.userAccuracy = accuracy;
+
+      updateUserLocationMarker(latitude, longitude, accuracy);
+
+      if (isFirst || (isFirstFix && autoCenter)) {
+        AppState.map.flyTo([latitude, longitude], 16, { animate: true, duration: 1.2 });
+        isFirstFix = false;
+        showToast('Localização em tempo real sincronizada!');
+      }
+    },
+    (err) => {
+      console.error('Erro na geolocalização:', err);
+      let msg = 'Não foi possível obter sua localização.';
+      if (err.code === 1) { // PERMISSION_DENIED
+        msg = 'Permissão de localização negada pelo navegador.';
+        stopLiveLocationTracking();
+      } else if (err.code === 2) { // POSITION_UNAVAILABLE
+        msg = 'Sinal de GPS fraco ou indisponível.';
+      } else if (err.code === 3) { // TIMEOUT
+        msg = 'Tempo limite esgotado ao buscar sinal GPS.';
+      }
+      showToast(msg);
+    },
+    geoOptions
+  );
+}
+
+function stopLiveLocationTracking() {
+  if (AppState.userLocationWatchId !== null) {
+    navigator.geolocation.clearWatch(AppState.userLocationWatchId);
+    AppState.userLocationWatchId = null;
+  }
+  AppState.isTrackingLive = false;
+
+  const locateBtn = document.getElementById('locateMeBtn');
+  if (locateBtn) {
+    locateBtn.classList.remove('tracking-active');
+    locateBtn.setAttribute('title', 'Minha Localização (Ativar tempo real)');
+  }
+}
+
+function updateUserLocationMarker(lat, lng, accuracy) {
+  const customIcon = L.divIcon({
+    className: 'user-location-icon-wrapper',
+    html: `
+      <div class="user-live-location-pin">
+        <div class="user-live-location-pulse"></div>
+        <div class="user-live-location-core"></div>
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+
+  const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const accText = accuracy ? `~${Math.round(accuracy)}m` : 'Precisão alta';
+
+  const popupContent = `
+    <div style="font-family: inherit; font-size: 0.85rem; line-height: 1.45; color: #0f172a; padding: 3px 2px;">
+      <div style="display:flex; align-items:center; gap: 6px; font-weight: 700; color: #2563eb; margin-bottom: 4px;">
+        <span style="display:inline-block; width:9px; height:9px; background:#10b981; border-radius:50%; box-shadow: 0 0 8px #10b981;"></span>
+        Você está aqui
+      </div>
+      <div style="font-size: 0.74rem; color: #475569;">
+        <strong>Status:</strong> Em tempo real 🟢<br>
+        <strong>Precisão GPS:</strong> ${accText}<br>
+        <strong>Última atualização:</strong> ${nowTime}
+      </div>
+    </div>
+  `;
+
+  if (!AppState.userMarker) {
+    AppState.userMarker = L.marker([lat, lng], {
+      icon: customIcon,
+      zIndexOffset: 1000
+    }).addTo(AppState.map);
+
+    AppState.userMarker.bindPopup(popupContent);
+  } else {
+    AppState.userMarker.setLatLng([lat, lng]);
+    AppState.userMarker.setIcon(customIcon);
+    AppState.userMarker.setPopupContent(popupContent);
+  }
+
+  if (accuracy && accuracy > 0) {
+    if (!AppState.userAccuracyCircle) {
+      AppState.userAccuracyCircle = L.circle([lat, lng], {
+        radius: accuracy,
+        color: '#3b82f6',
+        fillColor: '#3b82f6',
+        fillOpacity: 0.1,
+        weight: 1.5,
+        interactive: false
+      }).addTo(AppState.map);
+    } else {
+      AppState.userAccuracyCircle.setLatLng([lat, lng]);
+      AppState.userAccuracyCircle.setRadius(accuracy);
+    }
+  }
+}
+
+// --- AÇÕES GLOBAIS CRM (VISITAS & NEGOCIAÇÃO) ---
+window.togglePlaceVisited = function(placeId) {
+  const place = AppState.places.find(p => p.id === placeId);
+  if (!place) return;
+
+  place.visited = !place.visited;
+  if (place.visited) {
+    place.visitedAt = new Date().toISOString();
+    showToast(`"${place.name}" marcado como VISITADO!`);
+  } else {
+    delete place.visitedAt;
+    showToast(`"${place.name}" marcado como A VISITAR!`);
+  }
+
+  savePlaces();
+  updateUI();
+
+  // Se o filtro atual for "Apenas Não Visitados" e o local foi marcado como visitado, ele sai do mapa
+  if (AppState.visitedFilter === 'unvisited' && place.visited) {
+    document.getElementById('placeDetailDrawer').classList.remove('open');
+    showToast(`Local ocultado do mapa. Acesse a aba "Visitados" para visualizá-lo.`);
+  } else if (AppState.visitedFilter === 'visited' && !place.visited) {
+    document.getElementById('placeDetailDrawer').classList.remove('open');
+    showToast(`Local movido para a aba "A Visitar".`);
+  } else {
+    selectPlace(placeId, false);
+  }
+};
+
+window.updatePlaceCardMachine = function(placeId, machine) {
+  const place = AppState.places.find(p => p.id === placeId);
+  if (!place) return;
+
+  place.cardMachine = machine;
+  savePlaces();
+  updateUI();
+  showToast(`Maquininha atualizada para: ${machine || 'Não Informado'}`);
+};
+
+window.savePlaceCrmNotes = function(placeId, notes) {
+  const place = AppState.places.find(p => p.id === placeId);
+  if (!place) return;
+
+  if (place.crmNotes !== notes) {
+    place.crmNotes = notes;
+    savePlaces();
+    showToast('Anotações de negociação salvas!');
+  }
+};

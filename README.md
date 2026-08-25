@@ -1,28 +1,47 @@
-# 🗺️ CityMap Hub - Mapeador Urbano & Gestão de Leads Georreferenciados
+# 🗺️ CityMap Hub - Mapeador Urbano & CRM de Prospecção Georreferenciada
 
-Sistema web moderno, interativo e 100% responsivo para mapeamento de pontos comerciais, gestão de leads, visualização de rotas com waypoints e integração direta com o **Google Maps** e **WhatsApp**.
+Sistema web moderno, interativo e 100% responsivo para mapeamento de pontos comerciais, gestão de visitas (CRM), controle de adquirentes/maquininhas de cartão, rastreamento GPS em tempo real e integração direta com **Google Maps** e **WhatsApp**.
 
 ---
 
 ## 🚀 Principais Funcionalidades
 
-- 📍 **Pins Interativos & Categorias**: Marcadores animados por cores e ícones específicos para cada segmento (Gastronomia, Comércio, Saúde, Lazer e Serviços).
-- 🏷️ **Filtros Avançados & Subcategorias**: Filtre múltiplos segmentos simultaneamente (ex: apenas *Adegas*, *Restaurantes*, *Farmácias*, etc.) com seleção múltipla e busca em tempo real.
-- ⚡ **Planejador de Rotas Inteligente**: Selecione múltiplos locais na cidade e use o botão **"Otimizar Trajeto Mais Fácil"** para reorganizar os pontos na rota mais curta e rápida.
-- 🗺️ **Integração Google Maps**: Exporte rotas multi-paradas com 1 clique para navegar direto no app do Google Maps pelo celular ou GPS do carro.
-- 💬 **WhatsApp Direto**: Botão de contato direto via WhatsApp já com o número do local formatado.
-- 📊 **Importador Apify (XLSX / CSV)**: Suporte nativo para carregar planilhas exportadas do *Google Maps Places Crawler (Apify)*, com detecção anti-duplicação inteligente por nome e coordenadas.
-- 📱 **100% Otimizado para Mobile**: Layout responsivo com gavetas deslizantes (off-canvas) e painel *bottom-sheet* para celular.
-- 🌓 **Estilos de Mapa**: Alternância instantânea entre modo Escuro (*Dark*), Claro (*Voyager*) e Satélite (*Esri*).
+### 📋 Módulo CRM de Visitas
+- **Fluxo de Visitas em 1 Clique**: Marque estabelecimentos como visitados instantaneamente pelo painel de detalhes.
+- **Ocultação Automática no Mapa**: Por padrão, o mapa inicia no modo **"A Visitar"**, ocultando locais já visitados para manter sua rota limpa e focada em novos clientes.
+- **Abas de Controle Segmentadas**:
+  - 🔘 **A Visitar** *(padrão)*: Apenas estabelecimentos pendentes de visita com contador em tempo real.
+  - 🟢 **Visitados**: Locais já visitados com checkmark visual nos pins do mapa.
+  - 🌐 **Todos**: Visão global panorâmica de todos os leads cadastrados.
+- **Anotações de Negociação (CRM)**: Salve observações da conversa (ex: nome do tomador de decisão, taxa atual praticada, data de retorno).
+
+### 💳 Gestão e Filtro de Maquininhas de Cartão (Adquirentes)
+- **Registro de Maquininha**: Controle de qual maquininha o cliente utiliza (**Stone, Cielo, Rede, PagBank/PagSeguro, Getnet, SafraPay, InfinitePay, Mercado Pago, Ton, C6 Bank, Outra ou Não Informado**).
+- **Filtro Multi-Marcas**: Filtre no mapa e na lista apenas estabelecimentos que utilizam determinadas marcas para prospecção estratégica de taxas.
+- **Edição Instantânea**: Troca rápida da maquininha diretamente no card do local.
+
+### 📍 Geolocalização em Tempo Real (Live GPS Tracking)
+- **Rastreamento Contínuo**: Acompanhe seu deslocamento em tempo real pelo mapa com suporte a `navigator.geolocation.watchPosition`.
+- **Marcador com Radar Pulsante**: Ponto azul animado com círculo de precisão em metros e status ao vivo.
+- **Recentralização Rápida**: Clique no botão de mira para recentralizar suavemente a visão na sua posição atual.
+
+### ⚡ Rotas & Mapeamento Inteligente
+- **Pins Interativos & Categorias**: Marcadores estilizados por cores e ícones específicos para Gastronomia, Comércio, Saúde, Lazer e Serviços.
+- **Filtros Avançados & Subcategorias**: Filtre múltiplos segmentos simultaneamente com busca textual instantânea.
+- **Planejador de Rotas com Otimizador**: Crie roteiros multi-paradas com algoritmo de rota mais rápida (**Nearest Neighbor**) e abra a rota completa diretamente no aplicativo do Google Maps.
+- **WhatsApp Direto**: Botão de contato rápido com mensagem pré-formatada.
+- **Importador Apify (XLSX / CSV)**: Importação de dados do Google Maps Places Crawler com anti-duplicação inteligente por coordenadas e nome.
+- **100% Responsivo**: Otimizado para smartphones (bottom sheet e gavetas deslizantes).
+- **Estilos de Mapa**: Alternância entre temas Escuro (*Dark*), Claro (*Voyager*) e Satélite (*Esri*).
 
 ---
 
 ## 🛠️ Tecnologias Utilizadas
 
-- **HTML5 & CSS3** (Vanilla CSS com Design System moderno e Glassmorphism)
+- **HTML5 & CSS3** (Vanilla CSS com Design System moderno, Dark Theme e Glassmorphism)
 - **JavaScript Moderno (ES6+)**
-- **Leaflet.js** (Renderização e manipulação do mapa interativo)
-- **CartoDB & OpenStreetMap & Esri** (Provedores de Tiles cartográficos gratuitos em HTTPS)
+- **Leaflet.js & MarkerCluster** (Renderização e manipulação do mapa interativo com agrupamento)
+- **CartoDB & OpenStreetMap & Esri** (Provedores de Tiles cartográficos em HTTPS)
 - **SheetJS (xlsx.full.min.js)** (Processamento de planilhas Excel/CSV no navegador)
 - **OSRM Routing Engine** (Cálculo de traçados viários e distâncias)
 
@@ -37,7 +56,7 @@ git clone https://github.com/FilipeBurini/sistema-leads-burini.git
 cd sistema-leads-burini
 ```
 
-Abra o arquivo `index.html` com o duplo clique ou via extensão *Live Server* no VS Code.
+Abra o arquivo `index.html` diretamente no navegador ou utilize a extensão *Live Server* do VS Code.
 
 ---
 
@@ -45,8 +64,8 @@ Abra o arquivo `index.html` com o duplo clique ou via extensão *Live Server* no
 
 1. Conecte este repositório no [Cloudflare Pages](https://dash.cloudflare.com/) ou ative o [GitHub Pages](https://pages.github.com/).
 2. Deixe o comando de build em branco (projeto 100% estático).
-3. O deploy será realizado automaticamente com SSL gratuito e CDN de alta performance.
+3. O deploy será realizado automaticamente com SSL gratuito e CDN global.
 
 ---
 
-Desenvolvido com foco em performance, usabilidade e alta conversão de prospecção.
+Desenvolvido para máxima eficiência em campo, prospecção e negociação comercial.

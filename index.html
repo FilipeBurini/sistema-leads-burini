@@ -63,6 +63,27 @@
         </button>
       </div>
 
+      <!-- CONTROLE CRM DE VISITAS (TABS SEGMENTADAS) -->
+      <div class="crm-filter-section">
+        <div class="crm-tabs" id="crmStatusTabs">
+          <button class="crm-tab active" data-visited="unvisited" title="Mostrar apenas locais pendentes de visita">
+            <i class="ri-map-pin-time-line"></i>
+            <span>A Visitar</span>
+            <b class="crm-badge-count" id="count-unvisited">0</b>
+          </button>
+          <button class="crm-tab" data-visited="visited" title="Mostrar locais que já foram visitados">
+            <i class="ri-checkbox-circle-line"></i>
+            <span>Visitados</span>
+            <b class="crm-badge-count" id="count-visited">0</b>
+          </button>
+          <button class="crm-tab" data-visited="all" title="Mostrar todos os locais cadastrados">
+            <i class="ri-apps-line"></i>
+            <span>Todos</span>
+            <b class="crm-badge-count" id="count-all">0</b>
+          </button>
+        </div>
+      </div>
+
       <!-- FILTROS DUPLOS: CATEGORIAS & SUBCATEGORIAS (ESPECIALIDADES) -->
       <div class="filters-dual-row">
         <!-- CATEGORIA PRINCIPAL -->
@@ -130,6 +151,31 @@
             </div>
             <div class="multiselect-options" id="subCategoryOptionsList">
               <!-- Injetado dinamicamente com base nas subcategorias reais cadastradas -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FILTRO DE MAQUININHA DE CARTÃO (CRM / NEGOCIAÇÃO) -->
+      <div class="filters-machine-row">
+        <div class="category-dropdown-wrapper">
+          <button class="category-dropdown-btn machine-filter-btn" id="machineDropdownBtn">
+            <div class="cat-drop-label">
+              <i class="ri-bank-card-line" style="color: #38bdf8;"></i>
+              <span id="selectedMachinesText">Todas as Maquininhas</span>
+            </div>
+            <i class="ri-arrow-down-s-line arrow-icon"></i>
+          </button>
+          <div class="category-multiselect-menu" id="machineMultiselectMenu">
+            <div class="multiselect-header">
+              <span>Maquininha Utilizada</span>
+              <div class="multiselect-actions">
+                <button type="button" id="selectAllMachinesBtn">Todas</button>
+                <button type="button" id="clearAllMachinesBtn">Limpar</button>
+              </div>
+            </div>
+            <div class="multiselect-options" id="machineOptionsList">
+              <!-- Injetado dinamicamente via JS -->
             </div>
           </div>
         </div>
@@ -313,6 +359,39 @@
         <div class="form-group">
           <label for="placeDescription">Descrição do Local</label>
           <textarea id="placeDescription" rows="3" placeholder="Conte mais sobre os produtos, serviços, destaques do ambiente..."></textarea>
+        </div>
+
+        <!-- CONTROLE CRM & MAQUININHA -->
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="placeCardMachine">Maquininha Utilizada</label>
+            <select id="placeCardMachine">
+              <option value="">❓ Não Informado</option>
+              <option value="Stone">🟢 Stone</option>
+              <option value="Cielo">🔵 Cielo</option>
+              <option value="Rede">🟠 Rede</option>
+              <option value="PagBank">🟡 PagBank / PagSeguro</option>
+              <option value="Getnet">🔴 Getnet</option>
+              <option value="SafraPay">🟣 SafraPay</option>
+              <option value="InfinitePay">⚡ InfinitePay</option>
+              <option value="Mercado Pago">🔹 Mercado Pago</option>
+              <option value="Ton">🟩 Ton</option>
+              <option value="C6 Bank">⬛ C6 Bank</option>
+              <option value="Outra">⚪ Outra</option>
+            </select>
+          </div>
+          <div class="form-group flex-1">
+            <label for="placeVisited">Status de Visita (CRM)</label>
+            <select id="placeVisited">
+              <option value="false">⚪ Não Visitado (A Visitar)</option>
+              <option value="true">🟢 Já Visitado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="placeCrmNotes">Anotações da Visita / Negociação (CRM)</label>
+          <input type="text" id="placeCrmNotes" placeholder="Ex: Falei com Marcos, taxa atual 2.1%, retorno na sexta...">
         </div>
 
         <div class="form-group">
