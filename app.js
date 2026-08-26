@@ -18,7 +18,7 @@ const AppState = {
   availableCardMachines: ['Stone', 'Cielo', 'Rede', 'PagBank', 'Getnet', 'SafraPay', 'InfinitePay', 'Mercado Pago', 'Ton', 'C6 Bank', 'Outra', 'Não Informado'],
   searchQuery: '',
   activePlaceId: null,
-  currentTileLayer: 'dark',
+  currentTileLayer: 'voyager',
   userCoordinates: null,
   userAccuracy: null,
   userMarker: null,
@@ -72,12 +72,11 @@ function initMap() {
   // Mover controles de zoom para o canto inferior direito
   L.control.zoom({ position: 'bottomright' }).addTo(AppState.map);
 
-  // Provedores de Tiles 100% Gratuitos e sem chave de API (OpenStreetMap, Esri e Dark)
+  // Provedores de Tiles 100% Gratuitos e sem chave de API (OpenStreetMap e Esri)
   AppState.tileLayers = {
-    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20
+    dark: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+      maxZoom: 16
     }),
     voyager: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -89,7 +88,8 @@ function initMap() {
     })
   };
 
-  AppState.tileLayers.dark.addTo(AppState.map);
+  // Modo Claro (OpenStreetMap) como padrão do sistema
+  AppState.tileLayers.voyager.addTo(AppState.map);
 
   // Grupo de marcadores com Cluster
   AppState.markersGroup = L.markerClusterGroup({
