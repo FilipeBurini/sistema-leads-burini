@@ -50,6 +50,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadInitialPlaces();
   setupEventListeners();
   updateUI();
+
+  // Atualização periódica do status de funcionamento a cada 60 segundos
+  setInterval(() => {
+    renderMapMarkers();
+    renderPlacesList();
+  }, 60000);
 });
 
 // --- INICIALIZAR MAPA COM TILES CUSTOMIZADOS ---
@@ -397,26 +403,41 @@ function renderPlacesList() {
     return;
   }
 
+  const now = new Date();
+
   container.innerHTML = AppState.filteredPlaces.map(place => {
     const catName = AppState.categoryNames[place.category] || place.category;
     const isActive = place.id === AppState.activePlaceId ? 'active' : '';
     const isVisited = !!place.visited;
+    const openStatus = getPlaceOpenStatus(place, now);
     const machineBadge = place.cardMachine ? `<span class="mini-machine-badge" title="Maquininha: ${escapeHtml(place.cardMachine)}"><i class="ri-bank-card-line"></i> ${escapeHtml(place.cardMachine)}</span>` : '';
     const visitedBadge = isVisited 
       ? `<span class="crm-list-dot visited" title="Já Visitado"><i class="ri-checkbox-circle-fill"></i></span>`
       : `<span class="crm-list-dot pending" title="A Visitar"><i class="ri-checkbox-blank-circle-line"></i></span>`;
 
+    const statusPill = place.hours ? `
+      <span class="place-item-status-pill ${openStatus.isOpen ? 'open' : 'closed'}">
+        <i class="${openStatus.isOpen ? 'ri-checkbox-circle-fill' : 'ri-time-line'}"></i>
+        ${openStatus.isOpen ? 'Aberto' : 'Fechado'}
+      </span>
+    ` : '';
+
     return `
-      <div class="place-item ${isActive} ${isVisited ? 'place-visited' : ''}" data-id="${place.id}" onclick="selectPlace('${place.id}', true)">
+      <div class="place-item ${isActive} ${isVisited ? 'place-visited' : ''} ${!openStatus.isOpen ? 'place-closed' : ''}" data-id="${place.id}" onclick="selectPlace('${place.id}', true)">
         <div class="place-item-left">
           ${visitedBadge}
-          <span class="place-item-dot" style="background: var(--color-${place.category}, var(--color-primary))"></span>
+          <span class="place-item-dot" style="background: ${!openStatus.isOpen ? '#64748b' : `var(--color-${place.category}, var(--color-primary))`}"></span>
           <div class="place-item-info">
             <span class="place-item-name" title="${escapeHtml(place.name)}">${escapeHtml(place.name)}</span>
-            ${machineBadge}
+            <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+              ${machineBadge}
+              ${statusPill}
+            </div>
           </div>
         </div>
-        <span class="place-item-badge" style="background: var(--color-${place.category}, var(--color-primary))">${catName}</span>
+        <span class="place-item-badge" style="background: ${!openStatus.isOpen ? '#475569' : `var(--color-${place.category}, var(--color-primary))`}">
+          ${catName}
+        </span>
       </div>
     `;
   }).join('');
@@ -425,17 +446,22 @@ function renderPlacesList() {
 function renderMapMarkers() {
   AppState.markersGroup.clearLayers();
 
+  const now = new Date();
+
   AppState.filteredPlaces.forEach(place => {
     const iconClass = AppState.categoryIcons[place.category] || 'ri-map-pin-fill';
     const isVisited = !!place.visited;
+    const openStatus = getPlaceOpenStatus(place, now);
+    const isClosed = !openStatus.isOpen;
     
-    // Criação do Ícone Customizado HTML com badge de visitado
+    // Criação do Ícone Customizado HTML com suporte a status fechado (cinza) e visitado
     const customIcon = L.divIcon({
-      className: `custom-map-pin pin-${place.category} ${isVisited ? 'is-visited' : ''}`,
+      className: `custom-map-pin pin-${place.category} ${isVisited ? 'is-visited' : ''} ${isClosed ? 'is-closed' : 'is-open'}`,
       html: `
-        <div class="pin-icon-wrap">
+        <div class="pin-icon-wrap" title="${escapeHtml(place.name)} - ${openStatus.statusText}">
           <i class="${iconClass}"></i>
-          ${isVisited ? '<span class="pin-visited-badge"><i class="ri-check-fill"></i></span>' : ''}
+          ${isVisited ? '<span class="pin-visited-badge" title="Visitado"><i class="ri-check-fill"></i></span>' : ''}
+          ${isClosed ? '<span class="pin-closed-indicator" title="Fechado agora"><i class="ri-time-line"></i></span>' : ''}
         </div>
       `,
       iconSize: [38, 38],
@@ -470,6 +496,9 @@ window.selectPlace = function(placeId, zoomIn = false) {
     AppState.map.flyTo([place.lat, place.lng], 16, { duration: 1.2 });
   }
 
+  // Avaliação do status de abertura no momento
+  const openStatus = getPlaceOpenStatus(place, new Date());
+
   // Preencher e abrir o Drawer de Detalhes
   const drawer = document.getElementById('placeDetailDrawer');
   const drawerContent = document.getElementById('drawerContent');
@@ -487,8 +516,19 @@ window.selectPlace = function(placeId, zoomIn = false) {
     </div>
     <div class="drawer-body">
       <div class="drawer-meta-top">
-        <span class="drawer-cat-badge" style="background: var(--color-${place.category}, var(--color-primary))">${catName}</span>
+        <span class="drawer-cat-badge" style="background: ${!openStatus.isOpen ? '#475569' : `var(--color-${place.category}, var(--color-primary))`}">
+          ${catName}
+        </span>
         ${place.rating ? `<span class="drawer-rating"><i class="ri-star-fill"></i> ${place.rating}</span>` : ''}
+      </div>
+
+      <!-- BANNER DE STATUS ABERTO / FECHADO EM TEMPO REAL -->
+      <div class="drawer-status-banner ${openStatus.isUnknown ? 'status-unknown' : (openStatus.isOpen ? 'status-open' : 'status-closed')}">
+        <div class="status-banner-left">
+          <span class="status-pulse-dot ${openStatus.isOpen ? 'dot-open' : 'dot-closed'}"></span>
+          <span class="status-banner-label">${openStatus.isOpen ? 'Aberto Agora' : 'Fechado no Momento'}</span>
+        </div>
+        <span class="status-banner-detail">${escapeHtml(openStatus.statusText)}</span>
       </div>
 
       <h2 class="drawer-title">${escapeHtml(place.name)}</h2>
@@ -503,7 +543,12 @@ window.selectPlace = function(placeId, zoomIn = false) {
         ${place.hours ? `
           <div class="info-item">
             <i class="ri-time-fill"></i>
-            <span>${escapeHtml(place.hours)}</span>
+            <div class="hours-info-wrap">
+              <span class="hours-badge ${openStatus.isOpen ? 'badge-open' : 'badge-closed'}">
+                ${openStatus.isOpen ? '🟢 Aberto Agora' : '🔴 Fechado no Momento'}
+              </span>
+              <span class="hours-text">${escapeHtml(place.hours)}</span>
+            </div>
           </div>
         ` : ''}
         ${place.phone ? `
@@ -1708,3 +1753,161 @@ window.savePlaceCrmNotes = function(placeId, notes) {
     showToast('Anotações de negociação salvas!');
   }
 };
+
+// --- VERIFICADOR DE STATUS DE FUNCIONAMENTO EM TEMPO REAL ---
+function getPlaceOpenStatus(place, refDate = new Date()) {
+  if (!place || !place.hours || typeof place.hours !== 'string' || !place.hours.trim()) {
+    return {
+      isOpen: true,
+      isUnknown: true,
+      statusText: 'Horário a consultar',
+      hoursText: ''
+    };
+  }
+
+  const raw = place.hours.trim();
+  const lower = raw.toLowerCase();
+
+  // 1. Casos 24 horas
+  if (lower.includes('24h') || lower.includes('24 horas') || lower.includes('24 hours') || lower.includes('aberto 24')) {
+    return {
+      isOpen: true,
+      isUnknown: false,
+      statusText: 'Aberto 24 horas',
+      hoursText: raw
+    };
+  }
+
+  // 2. Fechado explícito
+  if (lower === 'fechado' || lower === 'closed' || lower === 'fechado temporariamente') {
+    return {
+      isOpen: false,
+      isUnknown: false,
+      statusText: 'Fechado no momento',
+      hoursText: raw
+    };
+  }
+
+  // Obter hora e minuto atuais
+  const currentMinutes = refDate.getHours() * 60 + refDate.getMinutes();
+  const currentDayOfWeek = refDate.getDay(); // 0 = Dom, 1 = Seg, 2 = Ter, 3 = Qua, 4 = Qui, 5 = Sex, 6 = Sab
+
+  const dayNamesPt = ['domingo', 'segunda', 'terça', 'terca', 'quarta', 'quinta', 'sexta', 'sábado', 'sabado'];
+  const dayAbbrPt = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'sab'];
+
+  // Verificar se hoje está explicitamente marcado como fechado em textos com múltiplos dias
+  if (lower.includes('seg') || lower.includes('dom') || lower.includes('sab') || lower.includes('segunda')) {
+    const todayName = dayNamesPt[currentDayOfWeek === 0 ? 0 : currentDayOfWeek === 6 ? 7 : currentDayOfWeek];
+    const todayAbbr = dayAbbrPt[currentDayOfWeek];
+    
+    const lines = raw.split(/[\n;|\/]/);
+    for (const line of lines) {
+      const lineLower = line.toLowerCase();
+      if (lineLower.includes(todayName) || lineLower.includes(todayAbbr)) {
+        if (lineLower.includes('fechado') || lineLower.includes('closed')) {
+          return {
+            isOpen: false,
+            isUnknown: false,
+            statusText: 'Fechado no momento (Fechado hoje)',
+            hoursText: line.trim()
+          };
+        }
+      }
+    }
+  }
+
+  // Regex para intervalos de horários: "16:00 to 03:00", "08:00 às 18:00", "08h às 18h", "8:00 - 18:00", etc.
+  const timeRangeRegex = /(\d{1,2})(?::(\d{2})|h(?:(\d{2}))?)?\s*(?:to|até|ate|as|às|-|–|a)\s*(\d{1,2})(?::(\d{2})|h(?:(\d{2}))?)?/gi;
+
+  let matches = [];
+  let m;
+
+  while ((m = timeRangeRegex.exec(raw)) !== null) {
+    const startH = parseInt(m[1], 10);
+    const startM = parseInt(m[2] || m[3] || '0', 10);
+    const endH = parseInt(m[4], 10);
+    const endM = parseInt(m[5] || m[6] || '0', 10);
+
+    const startTotalMin = startH * 60 + startM;
+    const endTotalMin = endH * 60 + endM;
+
+    matches.push({
+      startTotalMin,
+      endTotalMin,
+      startFormatted: `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`,
+      endFormatted: `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+    });
+  }
+
+  // Fallback caso não tenha separado por "to" ou "-", mas tenha horários soltos
+  if (matches.length === 0) {
+    const simpleTimes = [];
+    const simpleTimeRegex = /\b(\d{1,2}):(\d{2})\b/g;
+    let st;
+    while ((st = simpleTimeRegex.exec(raw)) !== null) {
+      const h = parseInt(st[1], 10);
+      const min = parseInt(st[2], 10);
+      simpleTimes.push(h * 60 + min);
+    }
+    if (simpleTimes.length >= 2) {
+      for (let i = 0; i < simpleTimes.length - 1; i += 2) {
+        matches.push({
+          startTotalMin: simpleTimes[i],
+          endTotalMin: simpleTimes[i + 1],
+          startFormatted: `${String(Math.floor(simpleTimes[i] / 60)).padStart(2, '0')}:${String(simpleTimes[i] % 60).padStart(2, '0')}`,
+          endFormatted: `${String(Math.floor(simpleTimes[i + 1] / 60)).padStart(2, '0')}:${String(simpleTimes[i + 1] % 60).padStart(2, '0')}`
+        });
+      }
+    }
+  }
+
+  if (matches.length === 0) {
+    return {
+      isOpen: true,
+      isUnknown: true,
+      statusText: 'Horário a consultar',
+      hoursText: raw
+    };
+  }
+
+  // Avaliar se o horário atual está dentro de algum dos intervalos
+  let isCurrentlyOpen = false;
+  let matchingInterval = null;
+
+  for (const interval of matches) {
+    const { startTotalMin, endTotalMin } = interval;
+
+    if (startTotalMin <= endTotalMin) {
+      // Mesmo dia (ex: 08:00 às 18:00)
+      if (currentMinutes >= startTotalMin && currentMinutes < endTotalMin) {
+        isCurrentlyOpen = true;
+        matchingInterval = interval;
+        break;
+      }
+    } else {
+      // Vira a noite (ex: 16:00 às 03:00)
+      if (currentMinutes >= startTotalMin || currentMinutes < endTotalMin) {
+        isCurrentlyOpen = true;
+        matchingInterval = interval;
+        break;
+      }
+    }
+  }
+
+  if (isCurrentlyOpen) {
+    return {
+      isOpen: true,
+      isUnknown: false,
+      statusText: `Aberto agora • Fecha às ${matchingInterval.endFormatted}`,
+      hoursText: raw
+    };
+  } else {
+    const nextStart = matches[0].startFormatted;
+    return {
+      isOpen: false,
+      isUnknown: false,
+      statusText: `Fechado no momento • Abre às ${nextStart}`,
+      hoursText: raw
+    };
+  }
+}
