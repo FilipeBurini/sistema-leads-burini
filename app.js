@@ -11,7 +11,9 @@ const AppState = {
   filteredPlaces: [],
   selectedCategories: ['alimentacao', 'comercio', 'saude', 'lazer', 'servicos'],
   selectedSubCategories: [], // Vazio significa todas as disponíveis
-  visitedFilter: 'unvisited', // 'unvisited' (padrão - apenas não visitados), 'visited' (apenas visitados), 'all' (todos)
+  crmStageFilter: 'lead', // 'lead' (A Visitar / padrão), 'negotiating', 'follow_up', 'closed', 'all'
+  radiusFilter: null, // null (todos) ou valor em km (ex: 0.5, 1, 2, 5, 10)
+  radiusCircle: null,
   selectedCardMachines: [], // Vazio significa todas as disponíveis
   availableCardMachines: ['Stone', 'Cielo', 'Rede', 'PagBank', 'Getnet', 'SafraPay', 'InfinitePay', 'Mercado Pago', 'Ton', 'C6 Bank', 'Outra', 'Não Informado'],
   searchQuery: '',
@@ -177,8 +179,10 @@ function filterPlaces() {
   const query = AppState.searchQuery.toLowerCase().trim();
   const selectedCats = AppState.selectedCategories;
   const selectedSubs = AppState.selectedSubCategories;
-  const visitedMode = AppState.visitedFilter;
+  const stageFilter = AppState.crmStageFilter;
   const selectedMachines = AppState.selectedCardMachines;
+  const radiusKm = AppState.radiusFilter;
+  const userCoords = AppState.userCoordinates;
 
   AppState.filteredPlaces = AppState.places.filter(place => {
     // 1. Categoria Principal
@@ -187,13 +191,19 @@ function filterPlaces() {
     // 2. Subcategoria
     const matchSubCategory = selectedSubs.length === 0 || !place.subCategory || selectedSubs.includes(place.subCategory.trim());
     
-    // 3. Status CRM de Visita (Oculta visitados no modo 'unvisited')
-    const isVisited = !!place.visited;
-    let matchVisited = true;
-    if (visitedMode === 'unvisited') {
-      matchVisited = !isVisited;
-    } else if (visitedMode === 'visited') {
-      matchVisited = isVisited;
+    // 3. Status CRM (Funil de Vendas e Retornos)
+    const stage = place.crmStage || (place.visited ? 'negotiating' : 'lead');
+    let matchStage = true;
+    if (stageFilter === 'lead') {
+      matchStage = (stage === 'lead');
+    } else if (stageFilter === 'negotiating') {
+      matchStage = (stage === 'negotiating');
+    } else if (stageFilter === 'follow_up') {
+      matchStage = !!place.followUpDate;
+    } else if (stageFilter === 'closed') {
+      matchStage = (stage === 'closed');
+    } else if (stageFilter === 'all') {
+      matchStage = true;
     }
 
     // 4. Maquininha de Cartão
@@ -203,22 +213,40 @@ function filterPlaces() {
       matchMachine = selectedMachines.includes(machine);
     }
 
-    // 5. Pesquisa Textual
+    // 5. Filtro de Raio de Distância (GPS)
+    let matchRadius = true;
+    if (userCoords) {
+      const dist = calculateDistanceKm(userCoords[0], userCoords[1], place.lat, place.lng);
+      place._distanceMeters = dist * 1000;
+      if (radiusKm) {
+        matchRadius = dist <= radiusKm;
+      }
+    } else {
+      delete place._distanceMeters;
+    }
+
+    // 6. Pesquisa Textual
     const matchSearch = !query || 
       place.name.toLowerCase().includes(query) ||
       place.address.toLowerCase().includes(query) ||
       (place.cardMachine && place.cardMachine.toLowerCase().includes(query)) ||
       (place.crmNotes && place.crmNotes.toLowerCase().includes(query)) ||
+      (place.followUpNotes && place.followUpNotes.toLowerCase().includes(query)) ||
       (place.subCategory && place.subCategory.toLowerCase().includes(query)) ||
       (place.description && place.description.toLowerCase().includes(query)) ||
       (place.tags && place.tags.some(tag => tag.toLowerCase().includes(query)));
 
-    return matchCategory && matchSubCategory && matchVisited && matchMachine && matchSearch;
+    return matchCategory && matchSubCategory && matchStage && matchMachine && matchRadius && matchSearch;
   });
 
   // Ordenação
   const sortOption = document.getElementById('sortPlacesSelect').value;
   AppState.filteredPlaces.sort((a, b) => {
+    if (sortOption === 'distance-asc') {
+      const distA = a._distanceMeters !== undefined ? a._distanceMeters : Infinity;
+      const distB = b._distanceMeters !== undefined ? b._distanceMeters : Infinity;
+      return distA - distB;
+    }
     if (sortOption === 'name-asc') return a.name.localeCompare(b.name);
     if (sortOption === 'name-desc') return b.name.localeCompare(a.name);
     if (sortOption === 'rating-desc') return (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0);
@@ -228,20 +256,30 @@ function filterPlaces() {
 
 function updateCategoryCounts() {
   const counts = { alimentacao: 0, comercio: 0, saude: 0, lazer: 0, servicos: 0 };
-  let unvisitedCount = 0;
-  let visitedCount = 0;
+  let leadCount = 0;
+  let negotiatingCount = 0;
+  let followUpCount = 0;
+  let closedCount = 0;
 
   AppState.places.forEach(p => {
     if (counts[p.category] !== undefined) counts[p.category]++;
-    if (p.visited) visitedCount++;
-    else unvisitedCount++;
+    const stage = p.crmStage || (p.visited ? 'negotiating' : 'lead');
+    if (stage === 'lead') leadCount++;
+    else if (stage === 'negotiating') negotiatingCount++;
+    else if (stage === 'closed') closedCount++;
+
+    if (p.followUpDate) followUpCount++;
   });
 
-  // Atualizar badges CRM de visitas
-  const unvEl = document.getElementById('count-unvisited');
-  if (unvEl) unvEl.textContent = unvisitedCount;
-  const visEl = document.getElementById('count-visited');
-  if (visEl) visEl.textContent = visitedCount;
+  // Atualizar badges CRM do funil
+  const leadEl = document.getElementById('count-lead');
+  if (leadEl) leadEl.textContent = leadCount;
+  const negEl = document.getElementById('count-negotiating');
+  if (negEl) negEl.textContent = negotiatingCount;
+  const folEl = document.getElementById('count-follow_up');
+  if (folEl) folEl.textContent = followUpCount;
+  const cloEl = document.getElementById('count-closed');
+  if (cloEl) cloEl.textContent = closedCount;
   const allEl = document.getElementById('count-all');
   if (allEl) allEl.textContent = AppState.places.length;
 
@@ -258,9 +296,12 @@ function updateCategoryCounts() {
     } else if (AppState.selectedCategories.length === 0) {
       dropText.textContent = 'Nenhuma';
     } else {
-      dropText.textContent = `${AppState.selectedCategories.length} cats.`;
+      dropText.textContent = `${AppState.selectedCategories.length} Selecionadas`;
     }
   }
+
+  // Verificar e atualizar o banner de retornos de hoje no mapa
+  checkTodayFollowUpsBanner();
 
   // Atualizar texto do dropdown de subcategorias
   const subDropText = document.getElementById('selectedSubCategoriesText');
@@ -408,12 +449,21 @@ function renderPlacesList() {
   container.innerHTML = AppState.filteredPlaces.map(place => {
     const catName = AppState.categoryNames[place.category] || place.category;
     const isActive = place.id === AppState.activePlaceId ? 'active' : '';
-    const isVisited = !!place.visited;
+    const stage = place.crmStage || (place.visited ? 'negotiating' : 'lead');
     const openStatus = getPlaceOpenStatus(place, now);
+    const followUp = getFollowUpStatus(place);
+
     const machineBadge = place.cardMachine ? `<span class="mini-machine-badge" title="Maquininha: ${escapeHtml(place.cardMachine)}"><i class="ri-bank-card-line"></i> ${escapeHtml(place.cardMachine)}</span>` : '';
-    const visitedBadge = isVisited 
-      ? `<span class="crm-list-dot visited" title="Já Visitado"><i class="ri-checkbox-circle-fill"></i></span>`
-      : `<span class="crm-list-dot pending" title="A Visitar"><i class="ri-checkbox-blank-circle-line"></i></span>`;
+    
+    // Badge de estágio no funil
+    let stageDot = `<span class="crm-list-dot pending" title="A Visitar"><i class="ri-checkbox-blank-circle-line"></i></span>`;
+    if (stage === 'negotiating') {
+      stageDot = `<span class="crm-list-dot" style="color: #fbbf24;" title="Em Negociação"><i class="ri-time-fill"></i></span>`;
+    } else if (stage === 'closed') {
+      stageDot = `<span class="crm-list-dot visited" title="Cliente Fechado"><i class="ri-checkbox-circle-fill"></i></span>`;
+    } else if (stage === 'rejected') {
+      stageDot = `<span class="crm-list-dot" style="color: #f43f5e;" title="Sem Interesse"><i class="ri-close-circle-fill"></i></span>`;
+    }
 
     const statusPill = place.hours ? `
       <span class="place-item-status-pill ${openStatus.isOpen ? 'open' : 'closed'}">
@@ -422,15 +472,29 @@ function renderPlacesList() {
       </span>
     ` : '';
 
+    const distanceBadge = place._distanceMeters !== undefined ? `
+      <span class="place-distance-badge" title="Distância até você">
+        <i class="ri-navigation-line"></i> ${formatDistance(place._distanceMeters)}
+      </span>
+    ` : '';
+
+    const followUpTag = followUp.isScheduled ? `
+      <span class="place-followup-tag ${followUp.isToday || followUp.isOverdue ? 'due-today' : 'due-upcoming'}" title="Retorno Agendado: ${place.followUpDate} ${place.followUpTime || ''}">
+        <i class="ri-calendar-event-fill"></i> ${followUp.label}
+      </span>
+    ` : '';
+
     return `
-      <div class="place-item ${isActive} ${isVisited ? 'place-visited' : ''} ${!openStatus.isOpen ? 'place-closed' : ''}" data-id="${place.id}" onclick="selectPlace('${place.id}', true)">
+      <div class="place-item ${isActive} ${stage === 'closed' ? 'place-visited' : ''} ${!openStatus.isOpen ? 'place-closed' : ''}" data-id="${place.id}" onclick="selectPlace('${place.id}', true)">
         <div class="place-item-left">
-          ${visitedBadge}
+          ${stageDot}
           <span class="place-item-dot" style="background: ${!openStatus.isOpen ? '#64748b' : `var(--color-${place.category}, var(--color-primary))`}"></span>
           <div class="place-item-info">
             <span class="place-item-name" title="${escapeHtml(place.name)}">${escapeHtml(place.name)}</span>
             <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+              ${distanceBadge}
               ${machineBadge}
+              ${followUpTag}
               ${statusPill}
             </div>
           </div>
@@ -450,17 +514,31 @@ function renderMapMarkers() {
 
   AppState.filteredPlaces.forEach(place => {
     const iconClass = AppState.categoryIcons[place.category] || 'ri-map-pin-fill';
-    const isVisited = !!place.visited;
+    const stage = place.crmStage || (place.visited ? 'negotiating' : 'lead');
     const openStatus = getPlaceOpenStatus(place, now);
     const isClosed = !openStatus.isOpen;
+    const followUp = getFollowUpStatus(place);
     
-    // Criação do Ícone Customizado HTML com suporte a status fechado (cinza) e visitado
+    // Indicador de estágio no pin
+    let stageBadgeHtml = '';
+    if (stage === 'negotiating') {
+      stageBadgeHtml = '<span class="pin-stage-badge negotiating" title="Em Negociação"><i class="ri-time-fill"></i></span>';
+    } else if (stage === 'closed') {
+      stageBadgeHtml = '<span class="pin-stage-badge closed" title="Cliente Fechado"><i class="ri-checkbox-circle-fill"></i></span>';
+    } else if (stage === 'rejected') {
+      stageBadgeHtml = '<span class="pin-stage-badge rejected" title="Sem Interesse"><i class="ri-close-fill"></i></span>';
+    }
+
+    const followUpBadgeHtml = followUp.isScheduled ? `<span class="pin-followup-badge" title="Retorno Agendado: ${followUp.label}"><i class="ri-calendar-event-fill"></i></span>` : '';
+
+    // Criação do Ícone Customizado HTML
     const customIcon = L.divIcon({
-      className: `custom-map-pin pin-${place.category} ${isVisited ? 'is-visited' : ''} ${isClosed ? 'is-closed' : 'is-open'}`,
+      className: `custom-map-pin pin-${place.category} stage-${stage} ${isClosed ? 'is-closed' : 'is-open'}`,
       html: `
         <div class="pin-icon-wrap" title="${escapeHtml(place.name)} - ${openStatus.statusText}">
           <i class="${iconClass}"></i>
-          ${isVisited ? '<span class="pin-visited-badge" title="Visitado"><i class="ri-check-fill"></i></span>' : ''}
+          ${stageBadgeHtml}
+          ${followUpBadgeHtml}
           ${isClosed ? '<span class="pin-closed-indicator" title="Fechado agora"><i class="ri-time-line"></i></span>' : ''}
         </div>
       `,
@@ -496,8 +574,10 @@ window.selectPlace = function(placeId, zoomIn = false) {
     AppState.map.flyTo([place.lat, place.lng], 16, { duration: 1.2 });
   }
 
-  // Avaliação do status de abertura no momento
+  // Avaliação do status de abertura e estágio CRM
   const openStatus = getPlaceOpenStatus(place, new Date());
+  const stage = place.crmStage || (place.visited ? 'negotiating' : 'lead');
+  const followUp = getFollowUpStatus(place);
 
   // Preencher e abrir o Drawer de Detalhes
   const drawer = document.getElementById('placeDetailDrawer');
@@ -540,6 +620,12 @@ window.selectPlace = function(placeId, zoomIn = false) {
           <i class="ri-map-pin-2-fill"></i>
           <span>${escapeHtml(place.address)}</span>
         </div>
+        ${place._distanceMeters !== undefined ? `
+          <div class="info-item">
+            <i class="ri-navigation-fill" style="color: #38bdf8;"></i>
+            <span style="color: #38bdf8; font-weight: 600;">Distância de você: ${formatDistance(place._distanceMeters)}</span>
+          </div>
+        ` : ''}
         ${place.hours ? `
           <div class="info-item">
             <i class="ri-time-fill"></i>
@@ -561,21 +647,50 @@ window.selectPlace = function(placeId, zoomIn = false) {
 
       ${tagsHtml ? `<div class="drawer-tags-wrap">${tagsHtml}</div>` : ''}
 
-      <!-- BLOCO CRM & NEGOCIAÇÃO DE MAQUININHA -->
+      <!-- BLOCO CRM: FUNIL DE VENDAS, RETORNO & MAQUININHA -->
       <div class="drawer-crm-card">
         <div class="crm-card-header">
-          <span class="crm-badge ${place.visited ? 'status-visited' : 'status-pending'}">
-            <i class="${place.visited ? 'ri-checkbox-circle-fill' : 'ri-time-line'}"></i>
-            ${place.visited ? 'Visitado' : 'A Visitar'}
+          <span class="crm-badge stage-${stage}">
+            <i class="${stage === 'closed' ? 'ri-checkbox-circle-fill' : stage === 'negotiating' ? 'ri-time-fill' : stage === 'rejected' ? 'ri-close-circle-fill' : 'ri-user-line'}"></i>
+            ${stage === 'closed' ? 'Fechado / Ganho' : stage === 'negotiating' ? 'Em Negociação' : stage === 'rejected' ? 'Sem Interesse' : 'Lead (A Visitar)'}
           </span>
           ${place.visitedAt ? `<span class="crm-visit-date"><i class="ri-calendar-line"></i> ${new Date(place.visitedAt).toLocaleDateString('pt-BR')}</span>` : ''}
         </div>
 
-        <button class="btn btn-crm-toggle ${place.visited ? 'visited' : ''}" onclick="togglePlaceVisited('${place.id}')">
-          <i class="${place.visited ? 'ri-arrow-go-back-line' : 'ri-checkbox-circle-fill'}"></i>
-          <span>${place.visited ? 'Desmarcar Visita (Voltar para A Visitar)' : 'Marcar como Visitado ✔'}</span>
-        </button>
+        <!-- SELETOR RÁPIDO DE ETAPA DO FUNIL -->
+        <div class="crm-stage-selector">
+          <button type="button" class="crm-stage-btn ${stage === 'lead' ? 'active stage-lead' : ''}" onclick="setPlaceCrmStage('${place.id}', 'lead')">⚪ A Visitar</button>
+          <button type="button" class="crm-stage-btn ${stage === 'negotiating' ? 'active stage-negotiating' : ''}" onclick="setPlaceCrmStage('${place.id}', 'negotiating')">🟡 Negociação</button>
+          <button type="button" class="crm-stage-btn ${stage === 'closed' ? 'active stage-closed' : ''}" onclick="setPlaceCrmStage('${place.id}', 'closed')">🟢 Fechado</button>
+          <button type="button" class="crm-stage-btn ${stage === 'rejected' ? 'active stage-rejected' : ''}" onclick="setPlaceCrmStage('${place.id}', 'rejected')">🔴 Recusado</button>
+        </div>
 
+        <!-- AGENDAMENTO DE RETORNO (FOLLOW-UP) -->
+        <div class="crm-followup-box">
+          <div class="followup-header">
+            <div style="display:flex; align-items:center; gap: 4px;">
+              <i class="ri-calendar-event-fill" style="color: #38bdf8;"></i>
+              <span>Agendar Retorno:</span>
+            </div>
+            ${place.followUpDate ? `<button type="button" class="btn-clear-followup" onclick="clearPlaceFollowUp('${place.id}')"><i class="ri-delete-bin-line"></i> Cancelar</button>` : ''}
+          </div>
+          
+          <div class="followup-inputs-row">
+            <input type="date" id="drawerFollowUpDate" value="${place.followUpDate || ''}" onchange="savePlaceFollowUp('${place.id}')">
+            <input type="time" id="drawerFollowUpTime" value="${place.followUpTime || ''}" onchange="savePlaceFollowUp('${place.id}')">
+          </div>
+
+          <div class="followup-quick-chips">
+            <button type="button" class="quick-chip" onclick="setQuickFollowUp('${place.id}', 0, '14:00')">Hoje 14h</button>
+            <button type="button" class="quick-chip" onclick="setQuickFollowUp('${place.id}', 1, '10:00')">Amanhã 10h</button>
+            <button type="button" class="quick-chip" onclick="setQuickFollowUp('${place.id}', 3, '15:00')">Em 3 dias</button>
+            <button type="button" class="quick-chip" onclick="setQuickFollowUp('${place.id}', 7, '10:00')">Próx. Semana</button>
+          </div>
+
+          <input type="text" class="crm-notes-input followup-note" placeholder="Motivo do retorno (ex: Falar com o sócio Carlos sobre taxas)..." value="${escapeHtml(place.followUpNotes || '')}" onblur="savePlaceFollowUpNotes('${place.id}', this.value)">
+        </div>
+
+        <!-- MAQUININHA DE CARTÃO -->
         <div class="crm-machine-box">
           <div class="machine-label">
             <i class="ri-bank-card-fill"></i>
@@ -600,9 +715,9 @@ window.selectPlace = function(placeId, zoomIn = false) {
         <div class="crm-notes-box">
           <div class="notes-header">
             <i class="ri-file-edit-line"></i>
-            <span>Anotações da Visita / Negociação:</span>
+            <span>Anotações Gerais de Negociação:</span>
           </div>
-          <textarea class="crm-notes-input" placeholder="Ex: Falei com o proprietário João, taxa atual 2.1%, retorno na sexta..." onblur="savePlaceCrmNotes('${place.id}', this.value)">${escapeHtml(place.crmNotes || '')}</textarea>
+          <textarea class="crm-notes-input" placeholder="Ex: Falei com o proprietário João, taxa atual 2.1%, proposta feita..." onblur="savePlaceCrmNotes('${place.id}', this.value)">${escapeHtml(place.crmNotes || '')}</textarea>
         </div>
       </div>
 
@@ -673,7 +788,9 @@ function openAddModal(placeId = null, defaultLat = null, defaultLng = null) {
       document.getElementById('placePhoto').value = place.photo || '';
       document.getElementById('placeDescription').value = place.description || '';
       document.getElementById('placeCardMachine').value = place.cardMachine || '';
-      document.getElementById('placeVisited').value = place.visited ? 'true' : 'false';
+      document.getElementById('placeCrmStage').value = place.crmStage || (place.visited ? 'negotiating' : 'lead');
+      document.getElementById('placeFollowUpDate').value = place.followUpDate || '';
+      document.getElementById('placeFollowUpTime').value = place.followUpTime || '';
       document.getElementById('placeCrmNotes').value = place.crmNotes || '';
       document.getElementById('placeTags').value = (place.tags || []).join(', ');
     }
@@ -1147,14 +1264,29 @@ function setupEventListeners() {
     });
   }
 
-  // Tabs de Controle CRM de Visitas (A Visitar / Visitados / Todos)
+  // Tabs de Controle CRM do Funil (A Visitar / Negociação / Retornos / Fechados / Todos)
   document.querySelectorAll('#crmStatusTabs .crm-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('#crmStatusTabs .crm-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
-      AppState.visitedFilter = tab.dataset.visited;
+      AppState.crmStageFilter = tab.dataset.stage;
       updateUI();
     });
+  });
+
+  // Pills de Filtro por Raio de Distância (GPS)
+  document.querySelectorAll('#radiusPills .radius-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('#radiusPills .radius-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const rVal = pill.dataset.radius;
+      setDistanceRadius(rVal === 'all' ? null : parseFloat(rVal));
+    });
+  });
+
+  // Botão do banner de alerta de retornos
+  document.getElementById('showTodayFollowUpsBtn')?.addEventListener('click', () => {
+    showTodayFollowUps();
   });
 
   // Botão Marcar/Desmarcar Todas Subcategorias
@@ -1218,10 +1350,14 @@ function setupEventListeners() {
     const photo = document.getElementById('placePhoto').value.trim();
     const description = document.getElementById('placeDescription').value.trim();
     const cardMachine = document.getElementById('placeCardMachine').value;
-    const visited = document.getElementById('placeVisited').value === 'true';
+    const crmStage = document.getElementById('placeCrmStage').value;
+    const followUpDate = document.getElementById('placeFollowUpDate').value;
+    const followUpTime = document.getElementById('placeFollowUpTime').value;
     const crmNotes = document.getElementById('placeCrmNotes').value.trim();
     const tagsInput = document.getElementById('placeTags').value.trim();
     const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+    const isVisited = (crmStage === 'closed' || crmStage === 'negotiating' || crmStage === 'rejected');
 
     if (placeId) {
       // Edição
@@ -1230,8 +1366,9 @@ function setupEventListeners() {
         AppState.places[index] = {
           ...AppState.places[index],
           name, category, address, lat, lng, phone, whatsapp, hours, rating, photo, description, tags,
-          cardMachine, visited, crmNotes,
-          visitedAt: visited ? (AppState.places[index].visitedAt || new Date().toISOString()) : undefined
+          cardMachine, crmStage, followUpDate, followUpTime, crmNotes,
+          visited: isVisited,
+          visitedAt: isVisited ? (AppState.places[index].visitedAt || new Date().toISOString()) : undefined
         };
         showToast('Local atualizado com sucesso!');
       }
@@ -1240,8 +1377,9 @@ function setupEventListeners() {
       const newPlace = {
         id: 'place-' + Date.now(),
         name, category, address, lat, lng, phone, whatsapp, hours, rating, photo, description, tags,
-        cardMachine, visited, crmNotes,
-        visitedAt: visited ? new Date().toISOString() : undefined
+        cardMachine, crmStage, followUpDate, followUpTime, crmNotes,
+        visited: isVisited,
+        visitedAt: isVisited ? new Date().toISOString() : undefined
       };
       AppState.places.unshift(newPlace);
       showToast('Novo local cadastrado com sucesso!');
@@ -1607,6 +1745,12 @@ function startLiveLocationTracking(autoCenter = true) {
 
       updateUserLocationMarker(latitude, longitude, accuracy);
 
+      if (AppState.radiusFilter) {
+        updateRadiusCircleOnMap();
+        filterPlaces();
+        renderPlacesList();
+      }
+
       if (isFirst || (isFirstFix && autoCenter)) {
         AppState.map.flyTo([latitude, longitude], 16, { animate: true, duration: 1.2 });
         isFirstFix = false;
@@ -1704,33 +1848,98 @@ function updateUserLocationMarker(lat, lng, accuracy) {
   }
 }
 
-// --- AÇÕES GLOBAIS CRM (VISITAS & NEGOCIAÇÃO) ---
-window.togglePlaceVisited = function(placeId) {
+// --- AÇÕES GLOBAIS CRM (FUNIL, RETORNOS, DISTÂNCIA & MAQUININHA) ---
+
+// 1. Mudança de estágio no Funil
+window.setPlaceCrmStage = function(placeId, stage) {
   const place = AppState.places.find(p => p.id === placeId);
   if (!place) return;
 
-  place.visited = !place.visited;
-  if (place.visited) {
+  place.crmStage = stage;
+  place.visited = (stage === 'closed' || stage === 'negotiating' || stage === 'rejected');
+
+  if (place.visited && !place.visitedAt) {
     place.visitedAt = new Date().toISOString();
-    showToast(`"${place.name}" marcado como VISITADO!`);
-  } else {
+  } else if (!place.visited) {
     delete place.visitedAt;
-    showToast(`"${place.name}" marcado como A VISITAR!`);
   }
 
   savePlaces();
   updateUI();
 
-  // Se o filtro atual for "Apenas Não Visitados" e o local foi marcado como visitado, ele sai do mapa
-  if (AppState.visitedFilter === 'unvisited' && place.visited) {
+  const labels = {
+    lead: 'Lead (A Visitar)',
+    negotiating: 'Em Negociação',
+    closed: 'Fechado / Ganho ✔',
+    rejected: 'Sem Interesse'
+  };
+
+  showToast(`Estágio alterado para: ${labels[stage] || stage}`);
+
+  // Se o filtro ativo for diferente do estágio novo, pode fechar ou atualizar o drawer
+  if (AppState.crmStageFilter !== 'all' && AppState.crmStageFilter !== stage && !(AppState.crmStageFilter === 'follow_up' && place.followUpDate)) {
     document.getElementById('placeDetailDrawer').classList.remove('open');
-    showToast(`Local ocultado do mapa. Acesse a aba "Visitados" para visualizá-lo.`);
-  } else if (AppState.visitedFilter === 'visited' && !place.visited) {
-    document.getElementById('placeDetailDrawer').classList.remove('open');
-    showToast(`Local movido para a aba "A Visitar".`);
+    showToast(`Local movido para a aba "${labels[stage] || stage}".`);
   } else {
     selectPlace(placeId, false);
   }
+};
+
+// 2. Agendamento de Retorno (Follow-up)
+window.savePlaceFollowUp = function(placeId) {
+  const place = AppState.places.find(p => p.id === placeId);
+  if (!place) return;
+
+  const dateInput = document.getElementById('drawerFollowUpDate');
+  const timeInput = document.getElementById('drawerFollowUpTime');
+
+  if (dateInput) place.followUpDate = dateInput.value;
+  if (timeInput) place.followUpTime = timeInput.value;
+
+  savePlaces();
+  updateUI();
+  showToast(`Retorno agendado para ${place.followUpDate} ${place.followUpTime || ''}`);
+};
+
+window.setQuickFollowUp = function(placeId, addDays, defaultTime = '10:00') {
+  const place = AppState.places.find(p => p.id === placeId);
+  if (!place) return;
+
+  const targetDate = new Date();
+  targetDate.setDate(targetDate.getDate() + addDays);
+  const yyyy = targetDate.getFullYear();
+  const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(targetDate.getDate()).padStart(2, '0');
+  
+  place.followUpDate = `${yyyy}-${mm}-${dd}`;
+  place.followUpTime = defaultTime;
+
+  savePlaces();
+  updateUI();
+  selectPlace(placeId, false);
+  showToast(`Retorno agendado para ${dd}/${mm} às ${defaultTime}!`);
+};
+
+window.clearPlaceFollowUp = function(placeId) {
+  const place = AppState.places.find(p => p.id === placeId);
+  if (!place) return;
+
+  delete place.followUpDate;
+  delete place.followUpTime;
+  delete place.followUpNotes;
+
+  savePlaces();
+  updateUI();
+  selectPlace(placeId, false);
+  showToast('Agendamento de retorno cancelado.');
+};
+
+window.savePlaceFollowUpNotes = function(placeId, notes) {
+  const place = AppState.places.find(p => p.id === placeId);
+  if (!place) return;
+
+  place.followUpNotes = notes;
+  savePlaces();
 };
 
 window.updatePlaceCardMachine = function(placeId, machine) {
@@ -1753,6 +1962,139 @@ window.savePlaceCrmNotes = function(placeId, notes) {
     showToast('Anotações de negociação salvas!');
   }
 };
+
+// 3. Status de Retorno Helper
+function getFollowUpStatus(place) {
+  if (!place || !place.followUpDate) {
+    return { isScheduled: false, isToday: false, isOverdue: false, isUpcoming: false, label: '' };
+  }
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  
+  const [y, m, d] = place.followUpDate.split('-').map(Number);
+  const followUpDateObj = new Date(y, m - 1, d);
+  const todayDateObj = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const diffDays = Math.round((followUpDateObj - todayDateObj) / (1000 * 60 * 60 * 24));
+  const timeText = place.followUpTime ? ` às ${place.followUpTime}` : '';
+
+  if (diffDays === 0) {
+    return { isScheduled: true, isToday: true, isOverdue: false, isUpcoming: false, label: `Retorno Hoje${timeText}` };
+  } else if (diffDays === 1) {
+    return { isScheduled: true, isToday: false, isOverdue: false, isUpcoming: true, label: `Retorno Amanhã${timeText}` };
+  } else if (diffDays > 1) {
+    return { isScheduled: true, isToday: false, isOverdue: false, isUpcoming: true, label: `Retorno em ${diffDays}d${timeText}` };
+  } else {
+    return { isScheduled: true, isToday: false, isOverdue: true, isUpcoming: false, label: `Retorno Atrasado (${Math.abs(diffDays)}d)` };
+  }
+}
+
+// 4. Banner de Alerta de Retornos no Topo do Mapa
+function checkTodayFollowUpsBanner() {
+  const alertBanner = document.getElementById('mapFollowUpAlert');
+  const alertText = document.getElementById('followUpAlertText');
+  if (!alertBanner || !alertText) return;
+
+  const duePlaces = AppState.places.filter(p => {
+    const st = getFollowUpStatus(p);
+    return st.isToday || st.isOverdue;
+  });
+
+  if (duePlaces.length > 0) {
+    alertText.textContent = `🔔 Você tem ${duePlaces.length} ${duePlaces.length === 1 ? 'retorno agendado' : 'retornos agendados'} para hoje!`;
+    alertBanner.style.display = 'flex';
+  } else {
+    alertBanner.style.display = 'none';
+  }
+}
+
+window.showTodayFollowUps = function() {
+  document.querySelectorAll('#crmStatusTabs .crm-tab').forEach(t => t.classList.remove('active'));
+  const folTab = document.querySelector('#crmStatusTabs .crm-tab[data-stage="follow_up"]');
+  if (folTab) folTab.classList.add('active');
+  AppState.crmStageFilter = 'follow_up';
+  updateUI();
+
+  // Centralizar no primeiro retorno
+  if (AppState.filteredPlaces.length > 0) {
+    AppState.map.flyTo([AppState.filteredPlaces[0].lat, AppState.filteredPlaces[0].lng], 15);
+    selectPlace(AppState.filteredPlaces[0].id, false);
+  }
+  showToast('Mostrando retornos agendados!');
+};
+
+// 5. Filtro de Raio de Distância (GPS)
+window.setDistanceRadius = function(radiusKm) {
+  AppState.radiusFilter = radiusKm;
+
+  const labelEl = document.getElementById('radiusCurrentVal');
+  if (labelEl) {
+    if (!radiusKm) {
+      labelEl.textContent = 'Sem limite';
+    } else if (radiusKm < 1) {
+      labelEl.textContent = `${radiusKm * 1000}m`;
+    } else {
+      labelEl.textContent = `${radiusKm} km`;
+    }
+  }
+
+  // Se o usuário ainda não tiver localização obtida, tenta iniciar o rastreamento
+  if (radiusKm && !AppState.userCoordinates) {
+    showToast('Obtendo seu GPS para calcular raio de distância...');
+    startLiveLocationTracking(false);
+  }
+
+  // Desenhar / Atualizar círculo de raio no mapa
+  updateRadiusCircleOnMap();
+
+  updateUI();
+};
+
+function updateRadiusCircleOnMap() {
+  if (!AppState.map) return;
+
+  if (AppState.radiusCircle) {
+    AppState.map.removeLayer(AppState.radiusCircle);
+    AppState.radiusCircle = null;
+  }
+
+  if (AppState.radiusFilter && AppState.userCoordinates) {
+    const radiusMeters = AppState.radiusFilter * 1000;
+    AppState.radiusCircle = L.circle(AppState.userCoordinates, {
+      radius: radiusMeters,
+      color: '#38bdf8',
+      fillColor: '#38bdf8',
+      fillOpacity: 0.08,
+      weight: 2,
+      dashArray: '5, 8',
+      interactive: false
+    }).addTo(AppState.map);
+
+    AppState.map.fitBounds(AppState.radiusCircle.getBounds(), { padding: [40, 40], maxZoom: 16 });
+  }
+}
+
+// 6. Cálculo de Distância Haversine (km)
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Raio da Terra em km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function formatDistance(meters) {
+  if (meters === undefined || meters === null || isNaN(meters)) return '';
+  if (meters < 1000) {
+    return `${Math.round(meters)}m`;
+  }
+  return `${(meters / 1000).toFixed(1)} km`;
+}
 
 // --- VERIFICADOR DE STATUS DE FUNCIONAMENTO EM TEMPO REAL ---
 function getPlaceOpenStatus(place, refDate = new Date()) {

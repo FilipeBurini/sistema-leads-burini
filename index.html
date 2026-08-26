@@ -63,24 +63,53 @@
         </button>
       </div>
 
-      <!-- CONTROLE CRM DE VISITAS (TABS SEGMENTADAS) -->
+      <!-- CONTROLE CRM DO FUNIL DE VENDAS & VISITAS -->
       <div class="crm-filter-section">
         <div class="crm-tabs" id="crmStatusTabs">
-          <button class="crm-tab active" data-visited="unvisited" title="Mostrar apenas locais pendentes de visita">
+          <button class="crm-tab active" data-stage="lead" title="Mostrar apenas locais pendentes de visita (Leads)">
             <i class="ri-map-pin-time-line"></i>
             <span>A Visitar</span>
-            <b class="crm-badge-count" id="count-unvisited">0</b>
+            <b class="crm-badge-count" id="count-lead">0</b>
           </button>
-          <button class="crm-tab" data-visited="visited" title="Mostrar locais que já foram visitados">
-            <i class="ri-checkbox-circle-line"></i>
-            <span>Visitados</span>
-            <b class="crm-badge-count" id="count-visited">0</b>
+          <button class="crm-tab" data-stage="negotiating" title="Mostrar clientes em negociação / proposta enviada">
+            <i class="ri-time-fill" style="color: #fbbf24;"></i>
+            <span>Negociação</span>
+            <b class="crm-badge-count" id="count-negotiating">0</b>
           </button>
-          <button class="crm-tab" data-visited="all" title="Mostrar todos os locais cadastrados">
+          <button class="crm-tab" data-stage="follow_up" title="Mostrar retornos agendados">
+            <i class="ri-calendar-event-fill" style="color: #38bdf8;"></i>
+            <span>Retornos</span>
+            <b class="crm-badge-count" id="count-follow_up">0</b>
+          </button>
+          <button class="crm-tab" data-stage="closed" title="Mostrar clientes fechados / credenciados">
+            <i class="ri-checkbox-circle-fill" style="color: #34d399;"></i>
+            <span>Fechados</span>
+            <b class="crm-badge-count" id="count-closed">0</b>
+          </button>
+          <button class="crm-tab" data-stage="all" title="Mostrar todos os locais cadastrados">
             <i class="ri-apps-line"></i>
             <span>Todos</span>
             <b class="crm-badge-count" id="count-all">0</b>
           </button>
+        </div>
+      </div>
+
+      <!-- FILTRO POR RAIO DE DISTÂNCIA (GPS EM TEMPO REAL) -->
+      <div class="radius-filter-row">
+        <div class="radius-filter-header">
+          <div class="radius-label">
+            <i class="ri-radar-fill" style="color: #38bdf8;"></i>
+            <span>Raio de Distância (GPS):</span>
+          </div>
+          <span class="radius-current-val" id="radiusCurrentVal">Sem limite</span>
+        </div>
+        <div class="radius-pills" id="radiusPills">
+          <button class="radius-pill active" data-radius="all">Todos</button>
+          <button class="radius-pill" data-radius="0.5">500m</button>
+          <button class="radius-pill" data-radius="1">1 km</button>
+          <button class="radius-pill" data-radius="2">2 km</button>
+          <button class="radius-pill" data-radius="5">5 km</button>
+          <button class="radius-pill" data-radius="10">10 km</button>
         </div>
       </div>
 
@@ -216,6 +245,7 @@
             <select id="sortPlacesSelect">
               <option value="name-asc">Nome (A - Z)</option>
               <option value="name-desc">Nome (Z - A)</option>
+              <option value="distance-asc">📍 Mais Próximos de Mim (GPS)</option>
               <option value="rating-desc">Melhor Avaliados</option>
             </select>
           </div>
@@ -243,6 +273,17 @@
     <main class="map-wrapper">
       <!-- MAP CONTAINER -->
       <div id="map"></div>
+
+      <!-- BANNER DE RETORNOS AGENDADOS PARA HOJE / PENDENTES -->
+      <div class="map-followup-alert" id="mapFollowUpAlert" style="display: none;">
+        <div class="followup-alert-content">
+          <i class="ri-calendar-check-fill alert-bell"></i>
+          <span id="followUpAlertText">Você tem retornos agendados para hoje!</span>
+        </div>
+        <button class="btn btn-sm btn-followup-action" id="showTodayFollowUpsBtn">
+          <i class="ri-focus-3-line"></i> Ver no Mapa
+        </button>
+      </div>
 
       <!-- BOTÃO FLUTUANTE MOBILE DE ABRIR SIDEBAR / LISTA -->
       <button class="mobile-toggle-btn" id="mobileToggleSidebarBtn">
@@ -381,16 +422,29 @@
             </select>
           </div>
           <div class="form-group flex-1">
-            <label for="placeVisited">Status de Visita (CRM)</label>
-            <select id="placeVisited">
-              <option value="false">⚪ Não Visitado (A Visitar)</option>
-              <option value="true">🟢 Já Visitado</option>
+            <label for="placeCrmStage">Etapa no Funil (CRM)</label>
+            <select id="placeCrmStage">
+              <option value="lead">⚪ Lead Novo (A Visitar)</option>
+              <option value="negotiating">🟡 Em Negociação / Proposta Feita</option>
+              <option value="closed">🟢 Fechado / Credenciado ✔</option>
+              <option value="rejected">🔴 Sem Interesse / Perdido</option>
             </select>
           </div>
         </div>
 
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="placeFollowUpDate">Data de Retorno (Follow-up)</label>
+            <input type="date" id="placeFollowUpDate">
+          </div>
+          <div class="form-group flex-1">
+            <label for="placeFollowUpTime">Horário de Retorno</label>
+            <input type="time" id="placeFollowUpTime">
+          </div>
+        </div>
+
         <div class="form-group">
-          <label for="placeCrmNotes">Anotações da Visita / Negociação (CRM)</label>
+          <label for="placeCrmNotes">Anotações da Negociação / Visita (CRM)</label>
           <input type="text" id="placeCrmNotes" placeholder="Ex: Falei com Marcos, taxa atual 2.1%, retorno na sexta...">
         </div>
 

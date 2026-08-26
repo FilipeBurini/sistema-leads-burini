@@ -1,38 +1,49 @@
 # 🗺️ CityMap Hub - Mapeador Urbano & CRM de Prospecção Georreferenciada
 
-Sistema web moderno, interativo e 100% responsivo para mapeamento de pontos comerciais, gestão de visitas (CRM), controle de adquirentes/maquininhas de cartão, rastreamento GPS em tempo real e integração direta com **Google Maps** e **WhatsApp**.
+Sistema web moderno, interativo e 100% responsivo para mapeamento de pontos comerciais, gestão de funil de vendas (CRM de campo), agendamento de retornos (follow-up), controle de maquininhas de cartão, filtro de proximidade por raio GPS e integração direta com **Google Maps** e **WhatsApp**.
 
 ---
 
 ## 🚀 Principais Funcionalidades
 
-### 📋 Módulo CRM de Visitas
-- **Fluxo de Visitas em 1 Clique**: Marque estabelecimentos como visitados instantaneamente pelo painel de detalhes.
-- **Ocultação Automática no Mapa**: Por padrão, o mapa inicia no modo **"A Visitar"**, ocultando locais já visitados para manter sua rota limpa e focada em novos clientes.
-- **Abas de Controle Segmentadas**:
-  - 🔘 **A Visitar** *(padrão)*: Apenas estabelecimentos pendentes de visita com contador em tempo real.
-  - 🟢 **Visitados**: Locais já visitados com checkmark visual nos pins do mapa.
-  - 🌐 **Todos**: Visão global panorâmica de todos os leads cadastrados.
-- **Anotações de Negociação (CRM)**: Salve observações da conversa (ex: nome do tomador de decisão, taxa atual praticada, data de retorno).
+### 🏆 1. Funil de Vendas Visual (CRM de Campo)
+- **4 Estágios Comerciais**:
+  - ⚪ **A Visitar / Lead**: Estabelecimento pendente de contato inicial.
+  - 🟡 **Em Negociação**: Proposta apresentada, aguardando decisão.
+  - 🟢 **Fechado / Credenciado**: Cliente ganho e fidelizado.
+  - 🔴 **Sem Interesse**: Estabelecimento que recusou proposta.
+- **Seletor Rápido no Painel**: Alterne o estágio comercial do cliente com 1 toque no card de detalhes.
+- **Pins Inteligentes no Mapa**: Ícones e cores dinâmicas no mapa representando o estágio exato do lead.
+- **Abas de Controle Segmentadas**: Filtre o mapa e a lista por *A Visitar*, *Em Negociação*, *Retornos*, *Fechados* ou *Todos*.
 
-### 💳 Gestão e Filtro de Maquininhas de Cartão (Adquirentes)
-- **Registro de Maquininha**: Controle de qual maquininha o cliente utiliza (**Stone, Cielo, Rede, PagBank/PagSeguro, Getnet, SafraPay, InfinitePay, Mercado Pago, Ton, C6 Bank, Outra ou Não Informado**).
-- **Filtro Multi-Marcas**: Filtre no mapa e na lista apenas estabelecimentos que utilizam determinadas marcas para prospecção estratégica de taxas.
-- **Edição Instantânea**: Troca rápida da maquininha diretamente no card do local.
+### ⏰ 2. Agendamento de Retorno com Lembretes (Follow-up)
+- **Agendamento com 1 Toque**: Defina data e horário do retorno diretamente no card do local com atalhos rápidos (*Hoje 14h*, *Amanhã 10h*, *Em 3 dias*, *Próxima Semana*).
+- **Banner de Alerta Inteligente**: Aviso no topo do mapa indicando quantos retornos você tem para hoje, com botão de 1 clique para focar no mapa e criar a rota.
+- **Aba Dedicada de Retornos**: Visualize rapidamente todos os clientes com retorno pendente ou atrasado.
 
-### 📍 Geolocalização em Tempo Real (Live GPS Tracking)
+### 🎯 3. Filtro por Raio de Distância GPS (*"Clientes a X km de mim"*)
+- **Filtro de Proximidade**: Isole estabelecimentos em um raio específico em torno da sua localização atual (**500m, 1 km, 2 km, 5 km ou 10 km**).
+- **Círculo Cartográfico Dinâmico**: Visualização suave do perímetro de alcance no mapa Leaflet.
+- **Ordenação por Distância**: Opção *"Mais Próximos de Mim (GPS)"* com exibição da distância em tempo real em cada card (ex: `📍 320m`, `📍 1.5 km`).
+
+### 🕒 4. Horários de Abertura em Tempo Real
+- **Identificação Automática**: Compara o horário atual do relógio com os horários de cada estabelecimento.
+- **Pins em Cinza**: Locais fechados no momento ficam automaticamente com pin em cinza ardósia no mapa.
+- **Banners de Status no Card**: Indicação clara de *🟢 Aberto Agora (Fecha às XX:XX)* ou *🔴 Fechado no Momento (Abre às XX:XX)*.
+
+### 💳 5. Gestão e Filtro de Maquininhas de Cartão (Adquirentes)
+- **Registro de Maquininha**: Controle de qual adquirente o cliente utiliza (**Stone, Cielo, Rede, PagBank/PagSeguro, Getnet, SafraPay, InfinitePay, Mercado Pago, Ton, C6 Bank, Outra ou Não Informado**).
+- **Filtro Multi-Marcas**: Filtre no mapa e na lista apenas estabelecimentos que utilizam determinadas marcas para prospecção de taxas.
+
+### 📍 6. Geolocalização em Tempo Real (Live GPS Tracking)
 - **Rastreamento Contínuo**: Acompanhe seu deslocamento em tempo real pelo mapa com suporte a `navigator.geolocation.watchPosition`.
 - **Marcador com Radar Pulsante**: Ponto azul animado com círculo de precisão em metros e status ao vivo.
-- **Recentralização Rápida**: Clique no botão de mira para recentralizar suavemente a visão na sua posição atual.
 
-### ⚡ Rotas & Mapeamento Inteligente
-- **Pins Interativos & Categorias**: Marcadores estilizados por cores e ícones específicos para Gastronomia, Comércio, Saúde, Lazer e Serviços.
-- **Filtros Avançados & Subcategorias**: Filtre múltiplos segmentos simultaneamente com busca textual instantânea.
-- **Planejador de Rotas com Otimizador**: Crie roteiros multi-paradas com algoritmo de rota mais rápida (**Nearest Neighbor**) e abra a rota completa diretamente no aplicativo do Google Maps.
-- **WhatsApp Direto**: Botão de contato rápido com mensagem pré-formatada.
+### ⚡ 7. Rotas Otimizadas & Importador Apify
+- **Planejador com Otimizador de Rota**: Algoritmo de menor trajeto (**Nearest Neighbor**) com exportação direta para navegação no aplicativo do Google Maps.
 - **Importador Apify (XLSX / CSV)**: Importação de dados do Google Maps Places Crawler com anti-duplicação inteligente por coordenadas e nome.
-- **100% Responsivo**: Otimizado para smartphones (bottom sheet e gavetas deslizantes).
-- **Estilos de Mapa**: Alternância entre temas Escuro (*Dark*), Claro (*Voyager*) e Satélite (*Esri*).
+- **WhatsApp Direto**: Botão de contato com mensagem pré-formatada.
+- **100% Responsivo**: Layout otimizado para celulares (gaveta deslizante off-canvas e painel bottom-sheet).
 
 ---
 
@@ -68,4 +79,4 @@ Abra o arquivo `index.html` diretamente no navegador ou utilize a extensão *Liv
 
 ---
 
-Desenvolvido para máxima eficiência em campo, prospecção e negociação comercial.
+Desenvolvido para máxima eficiência comercial em prospecção de campo.
