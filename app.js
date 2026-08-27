@@ -2045,22 +2045,26 @@ window.setDistanceRadius = function(radiusKm) {
     startLiveLocationTracking(false);
   }
 
-  // Desenhar / Atualizar círculo de raio no mapa
-  updateRadiusCircleOnMap();
+  // Atualizar círculo no mapa sem resetar zoom do usuário
+  updateRadiusCircleOnMap(false);
 
   updateUI();
 };
 
-function updateRadiusCircleOnMap() {
+function updateRadiusCircleOnMap(autoFit = false) {
   if (!AppState.map) return;
 
-  if (AppState.radiusCircle) {
-    AppState.map.removeLayer(AppState.radiusCircle);
-    AppState.radiusCircle = null;
+  if (!AppState.radiusFilter || !AppState.userCoordinates) {
+    if (AppState.radiusCircle) {
+      AppState.map.removeLayer(AppState.radiusCircle);
+      AppState.radiusCircle = null;
+    }
+    return;
   }
 
-  if (AppState.radiusFilter && AppState.userCoordinates) {
-    const radiusMeters = AppState.radiusFilter * 1000;
+  const radiusMeters = AppState.radiusFilter * 1000;
+
+  if (!AppState.radiusCircle) {
     AppState.radiusCircle = L.circle(AppState.userCoordinates, {
       radius: radiusMeters,
       color: '#38bdf8',
@@ -2070,7 +2074,12 @@ function updateRadiusCircleOnMap() {
       dashArray: '5, 8',
       interactive: false
     }).addTo(AppState.map);
+  } else {
+    AppState.radiusCircle.setLatLng(AppState.userCoordinates);
+    AppState.radiusCircle.setRadius(radiusMeters);
+  }
 
+  if (autoFit && AppState.radiusCircle) {
     AppState.map.fitBounds(AppState.radiusCircle.getBounds(), { padding: [40, 40], maxZoom: 16 });
   }
 }

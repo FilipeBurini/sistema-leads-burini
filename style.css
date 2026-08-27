@@ -530,7 +530,10 @@ body {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  width: 230px;
+  width: 260px;
+  max-width: 92vw;
+  max-height: 60vh;
+  overflow: hidden;
   background: #141c2e;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -560,6 +563,7 @@ body {
   border-bottom: 1px solid var(--border-color);
   font-size: 0.74rem;
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .multiselect-header button {
@@ -575,6 +579,27 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  overflow-y: auto;
+  max-height: 48vh;
+  padding-right: 4px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.multiselect-options::-webkit-scrollbar {
+  width: 6px;
+}
+
+.multiselect-options::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+.multiselect-options::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
 }
 
 .multiselect-option {
@@ -2318,11 +2343,21 @@ body {
     transform: translateY(0);
   }
 
-  /* Dropdown de filtros ocupa toda a largura no mobile */
+  /* Dropdown de filtros ocupa toda a largura no mobile com rolagem perfeita */
   .category-multiselect-menu {
     width: calc(100vw - 2.5rem);
-    left: 0;
-    right: 0;
+    max-width: 100%;
+    left: 0 !important;
+    right: 0 !important;
+    max-height: 60vh;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+    z-index: 3000;
+  }
+
+  .multiselect-options {
+    max-height: 46vh;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Modais de cadastro e rota responsivos */
