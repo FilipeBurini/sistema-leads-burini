@@ -23,6 +23,26 @@
 
   <!-- Custom Styles -->
   <link rel="stylesheet" href="style.css">
+
+  <!-- Auth Guard: Exige autenticação antes de abrir o mapa -->
+  <script>
+    (function() {
+      let hasToken = false;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          const val = localStorage.getItem(key);
+          if (val && val.includes('"access_token"')) {
+            hasToken = true;
+            break;
+          }
+        }
+      }
+      if (!hasToken && !window.location.search.includes('guest=true')) {
+        window.location.href = 'login.html';
+      }
+    })();
+  </script>
 </head>
 <body class="dark-theme">
   <div class="app-layout">

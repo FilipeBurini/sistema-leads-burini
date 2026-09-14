@@ -2684,11 +2684,7 @@ function setupCloudSyncIntegration() {
     userAuthBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (!CloudSync.currentUser) {
-        if (!CloudSync.isConfigured) {
-          openAuthModal('config');
-        } else {
-          openAuthModal('login');
-        }
+        window.location.href = 'login.html';
       } else {
         if (userProfileDropdown) userProfileDropdown.classList.toggle('open');
       }
@@ -2849,8 +2845,12 @@ function setupCloudSyncIntegration() {
         if (userProfileDropdown) userProfileDropdown.classList.remove('open');
         showToast('Desconectado com sucesso.');
         updateStatusUI(null);
+        setTimeout(() => {
+          window.location.href = 'login.html';
+        }, 400);
       } catch (err) {
         console.error('Erro ao sair:', err);
+        window.location.href = 'login.html';
       }
     });
   }

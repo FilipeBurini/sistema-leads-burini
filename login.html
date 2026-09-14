@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acesso Seguro - Mapeador Urbano & CRM</title>
+  <meta name="description" content="Acesse o sistema de mapeamento urbano e inteligência de leads comerciais.">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z'/></svg>">
+
+  <!-- Remix Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+  <!-- Estilos dedicados (Login Form V7) -->
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+
+  <!-- Efeitos de iluminação ambiente ao fundo -->
+  <div class="ambient-glow">
+    <div class="glow-circle-1"></div>
+    <div class="glow-circle-2"></div>
+  </div>
+
+  <!-- Botão sutil para configurar chaves da nuvem se necessário -->
+  <button type="button" class="top-config-btn" id="openConfigModalBtn" title="Configurar Conexão da Nuvem (Supabase)">
+    <i class="ri-settings-4-line"></i>
+  </button>
+
+  <!-- Card Principal Centralizado -->
+  <div class="login-wrapper">
+    <div class="login-card">
+      
+      <!-- Ícone Superior com Efeito Squircle & Brilho -->
+      <div class="card-header-badge">
+        <div class="badge-squircle">
+          <i class="ri-shield-keyhole-line" id="headerIcon"></i>
+        </div>
+      </div>
+
+      <!-- Títulos do Formulário -->
+      <div class="card-title-group">
+        <h1 class="card-title" id="formHeading">Welcome Back</h1>
+        <p class="card-subtitle" id="formSubHeading">Enter your credentials to access your secure account</p>
+      </div>
+
+      <!-- Alerta de Feedback (Erro / Sucesso) -->
+      <div id="authAlert" class="alert-feedback" style="display: none;">
+        <i class="ri-error-warning-line" id="alertIcon"></i>
+        <span id="alertMessage"></span>
+      </div>
+
+      <!-- Formulário de Autenticação -->
+      <form id="authForm" class="auth-form" novalidate>
+        
+        <!-- Campo: Nome Completo (Exibido apenas no Cadastro) -->
+        <div class="form-group" id="fullNameGroup" style="display: none;">
+          <label class="form-label" for="fullNameInput">Full Name</label>
+          <div class="input-container">
+            <input 
+              type="text" 
+              id="fullNameInput" 
+              class="input-field" 
+              placeholder="Alex Johnson"
+              autocomplete="name"
+            >
+            <i class="ri-user-line input-icon-left"></i>
+          </div>
+        </div>
+
+        <!-- Campo: E-mail -->
+        <div class="form-group">
+          <label class="form-label" for="emailInput">Email Address</label>
+          <div class="input-container">
+            <input 
+              type="email" 
+              id="emailInput" 
+              class="input-field" 
+              placeholder="name@domain.com" 
+              required
+              autocomplete="email"
+            >
+            <i class="ri-mail-line input-icon-left"></i>
+          </div>
+        </div>
+
+        <!-- Campos de Senha (Dual row no cadastro ou single no login) -->
+        <div id="passwordContainer" class="form-group">
+          <div id="passwordWrapper">
+            <label class="form-label" for="passwordInput">Password</label>
+            <div class="input-container">
+              <input 
+                type="password" 
+                id="passwordInput" 
+                class="input-field" 
+                placeholder="••••••••••••" 
+                required
+                autocomplete="current-password"
+              >
+              <i class="ri-lock-line input-icon-left"></i>
+              <button type="button" class="input-icon-right-btn" id="togglePasswordBtn" title="Mostrar/ocultar senha">
+                <i class="ri-eye-line" id="eyeIcon"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Campo Confirmar Senha (Apenas no Cadastro) -->
+          <div id="confirmPasswordWrapper" style="display: none; margin-top: 0.85rem;">
+            <label class="form-label" for="confirmPasswordInput">Confirm Password</label>
+            <div class="input-container">
+              <input 
+                type="password" 
+                id="confirmPasswordInput" 
+                class="input-field" 
+                placeholder="••••••••••••"
+                autocomplete="new-password"
+              >
+              <i class="ri-lock-check-line input-icon-left"></i>
+              <button type="button" class="input-icon-right-btn" id="toggleConfirmPasswordBtn" title="Mostrar/ocultar senha">
+                <i class="ri-eye-line" id="eyeConfirmIcon"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Linha Utilitária: Remember Me / Forgot Password (Modo Login) -->
+        <div class="form-util-row" id="loginUtilsRow">
+          <label class="remember-checkbox-label">
+            <input type="checkbox" id="rememberMeCheck" checked>
+            <span>Remember me</span>
+          </label>
+          <a href="#" class="forgot-password-link" id="forgotPasswordBtn">Forgot password?</a>
+        </div>
+
+        <!-- Linha de Termos (Modo Cadastro) -->
+        <div class="form-util-row" id="registerTermsRow" style="display: none;">
+          <label class="remember-checkbox-label">
+            <input type="checkbox" id="agreeTermsCheck" required>
+            <span>I agree to the Terms & Privacy Policy</span>
+          </label>
+        </div>
+
+        <!-- Botão de Ação Dourado (CTA) -->
+        <button type="submit" class="btn-gold-submit" id="submitBtn">
+          <span id="submitBtnText">Sign In</span>
+          <i class="ri-arrow-right-line btn-arrow" id="btnArrow"></i>
+        </button>
+
+      </form>
+
+      <!-- Rodapé: Alternância entre Entrar e Criar Conta -->
+      <div class="card-toggle-footer">
+        <span id="toggleQuestion">Don't have an account?</span>
+        <button type="button" class="toggle-mode-btn" id="toggleModeBtn">Sign Up</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Modal de Configuração do Supabase (Acessível via botão de engrenagem) -->
+  <div class="config-modal-backdrop" id="configModal">
+    <div class="config-modal-box">
+      <div class="config-modal-header">
+        <h3 class="config-modal-title">
+          <i class="ri-cloud-line" style="color: #f59e0b;"></i> Conexão com a Nuvem
+        </h3>
+        <button type="button" class="config-close-btn" id="closeConfigModalBtn">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+      <p style="font-size: 0.82rem; color: #94a3b8; line-height: 1.45; margin-bottom: 1rem;">
+        Insira a <strong>Project URL</strong> e a <strong>Anon Key</strong> do seu projeto gratuito no Supabase para habilitar autenticação em nuvem e sincronização em tempo real:
+      </p>
+      
+      <div class="form-group" style="margin-bottom: 0.85rem;">
+        <label class="form-label" for="cfgUrlInput">Supabase Project URL</label>
+        <input type="text" id="cfgUrlInput" class="input-field" placeholder="https://xyzcompany.supabase.co" style="padding-left: 1rem;">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label class="form-label" for="cfgKeyInput">Supabase Anon Key (Public)</label>
+        <textarea id="cfgKeyInput" class="config-textarea" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
+      </div>
+
+      <button type="button" class="btn-gold-submit" id="saveConfigBtn">
+        <span>Salvar e Conectar Nuvem</span>
+        <i class="ri-checkbox-circle-line btn-arrow"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Supabase Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="supabase-client.js"></script>
+
+  <!-- Login Logic Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      let isRegisterMode = false;
+
+      // Elementos DOM
+      const authForm = document.getElementById('authForm');
+      const formHeading = document.getElementById('formHeading');
+      const formSubHeading = document.getElementById('formSubHeading');
+      const headerIcon = document.getElementById('headerIcon');
+      const fullNameGroup = document.getElementById('fullNameGroup');
+      const fullNameInput = document.getElementById('fullNameInput');
+      const emailInput = document.getElementById('emailInput');
+      const passwordInput = document.getElementById('passwordInput');
+      const confirmPasswordWrapper = document.getElementById('confirmPasswordWrapper');
+      const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+      const loginUtilsRow = document.getElementById('loginUtilsRow');
+      const registerTermsRow = document.getElementById('registerTermsRow');
+      const agreeTermsCheck = document.getElementById('agreeTermsCheck');
+      const submitBtn = document.getElementById('submitBtn');
+      const submitBtnText = document.getElementById('submitBtnText');
+      const btnArrow = document.getElementById('btnArrow');
+      const toggleQuestion = document.getElementById('toggleQuestion');
+      const toggleModeBtn = document.getElementById('toggleModeBtn');
+      const authAlert = document.getElementById('authAlert');
+      const alertIcon = document.getElementById('alertIcon');
+      const alertMessage = document.getElementById('alertMessage');
+      const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+      const eyeIcon = document.getElementById('eyeIcon');
+      const toggleConfirmPasswordBtn = document.getElementById('toggleConfirmPasswordBtn');
+      const eyeConfirmIcon = document.getElementById('eyeConfirmIcon');
+      const forgotPasswordBtn = document.getElementById('forgotPasswordBtn');
+
+      // Modal Config
+      const openConfigModalBtn = document.getElementById('openConfigModalBtn');
+      const closeConfigModalBtn = document.getElementById('closeConfigModalBtn');
+      const configModal = document.getElementById('configModal');
+      const cfgUrlInput = document.getElementById('cfgUrlInput');
+      const cfgKeyInput = document.getElementById('cfgKeyInput');
+      const saveConfigBtn = document.getElementById('saveConfigBtn');
+
+      // Inicializa Supabase
+      CloudSync.init();
+
+      // Se o usuário já estiver logado, redireciona diretamente para o mapa
+      if (CloudSync.client) {
+        try {
+          const { data } = await CloudSync.client.auth.getSession();
+          if (data && data.session && data.session.user) {
+            showAlert('Sessão ativa detectada! Redirecionando para o mapa...', 'success');
+            setTimeout(() => {
+              window.location.href = 'index.html';
+            }, 600);
+            return;
+          }
+        } catch (e) {
+          console.warn('Erro ao verificar sessão existente:', e);
+        }
+      }
+
+      // Preencher inputs de configuração
+      if (cfgUrlInput) cfgUrlInput.value = localStorage.getItem('citymap_supabase_url') || window.SUPABASE_CONFIG?.url || '';
+      if (cfgKeyInput) cfgKeyInput.value = localStorage.getItem('citymap_supabase_key') || window.SUPABASE_CONFIG?.anonKey || '';
+
+      // Funções de Alerta
+      function showAlert(msg, type = 'error') {
+        authAlert.className = `alert-feedback ${type}`;
+        alertMessage.textContent = msg;
+        alertIcon.className = type === 'success' 
+          ? 'ri-checkbox-circle-line' 
+          : type === 'info' 
+            ? 'ri-information-line' 
+            : 'ri-error-warning-line';
+        authAlert.style.display = 'flex';
+      }
+
+      function hideAlert() {
+        authAlert.style.display = 'none';
+      }
+
+      // Alternar Modo: Login <-> Cadastro
+      toggleModeBtn.addEventListener('click', () => {
+        isRegisterMode = !isRegisterMode;
+        hideAlert();
+
+        if (isRegisterMode) {
+          // Modo Cadastro
+          formHeading.textContent = 'Create Account';
+          formSubHeading.textContent = 'Start collecting leads into your secure workspace';
+          headerIcon.className = 'ri-user-add-line';
+          fullNameGroup.style.display = 'flex';
+          confirmPasswordWrapper.style.display = 'block';
+          loginUtilsRow.style.display = 'none';
+          registerTermsRow.style.display = 'flex';
+          submitBtnText.textContent = 'Create Account';
+          toggleQuestion.textContent = 'Already have an account?';
+          toggleModeBtn.textContent = 'Sign In';
+          emailInput.placeholder = 'name@domain.com';
+        } else {
+          // Modo Login
+          formHeading.textContent = 'Welcome Back';
+          formSubHeading.textContent = 'Enter your credentials to access your secure account';
+          headerIcon.className = 'ri-shield-keyhole-line';
+          fullNameGroup.style.display = 'none';
+          confirmPasswordWrapper.style.display = 'none';
+          loginUtilsRow.style.display = 'flex';
+          registerTermsRow.style.display = 'none';
+          submitBtnText.textContent = 'Sign In';
+          toggleQuestion.textContent = "Don't have an account?";
+          toggleModeBtn.textContent = 'Sign Up';
+        }
+      });
+
+      // Alternar visibilidade da senha
+      togglePasswordBtn.addEventListener('click', () => {
+        const isPass = passwordInput.type === 'password';
+        passwordInput.type = isPass ? 'text' : 'password';
+        eyeIcon.className = isPass ? 'ri-eye-off-line' : 'ri-eye-line';
+      });
+
+      if (toggleConfirmPasswordBtn) {
+        toggleConfirmPasswordBtn.addEventListener('click', () => {
+          const isPass = confirmPasswordInput.type === 'password';
+          confirmPasswordInput.type = isPass ? 'text' : 'password';
+          eyeConfirmIcon.className = isPass ? 'ri-eye-off-line' : 'ri-eye-line';
+        });
+      }
+
+      // Esqueci minha senha
+      if (forgotPasswordBtn) {
+        forgotPasswordBtn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const email = emailInput.value.trim();
+          if (!email) {
+            showAlert('Informe seu e-mail no campo acima para redefinir a senha.', 'info');
+            emailInput.focus();
+            return;
+          }
+
+          if (!CloudSync.isConfigured || !CloudSync.client) {
+            showAlert('Configure a conexão com a nuvem no ícone de engrenagem.', 'error');
+            return;
+          }
+
+          try {
+            showAlert('Enviando link de redefinição...', 'info');
+            const { error } = await CloudSync.client.auth.resetPasswordForEmail(email, {
+              redirectTo: window.location.href
+            });
+            if (error) throw error;
+            showAlert('Link para redefinição de senha enviado para seu e-mail!', 'success');
+          } catch (err) {
+            showAlert(err.message || 'Erro ao enviar e-mail de recuperação.');
+          }
+        });
+      }
+
+      // Envio do Formulário (Login / Cadastro)
+      authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideAlert();
+
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+
+        if (!email || !password) {
+          showAlert('Preencha seu e-mail e senha.');
+          return;
+        }
+
+        if (isRegisterMode) {
+          const confirmPassword = confirmPasswordInput.value;
+          if (password !== confirmPassword) {
+            showAlert('As senhas digitadas não coincidem.');
+            confirmPasswordInput.focus();
+            return;
+          }
+          if (password.length < 6) {
+            showAlert('A senha deve conter no mínimo 6 caracteres.');
+            passwordInput.focus();
+            return;
+          }
+          if (!agreeTermsCheck.checked) {
+            showAlert('Você deve concordar com os Termos e Política de Privacidade.');
+            return;
+          }
+        }
+
+        // Verifica se Supabase está configurado
+        if (!CloudSync.isConfigured || !CloudSync.client) {
+          showAlert('A nuvem ainda não está configurada. Clique na engrenagem no topo direito para inserir sua URL e Anon Key do Supabase.', 'error');
+          openConfigModal();
+          return;
+        }
+
+        // Feedback de carregamento
+        submitBtn.disabled = true;
+        btnArrow.className = 'spinner';
+        submitBtnText.textContent = isRegisterMode ? 'Creating Account...' : 'Signing In...';
+
+        try {
+          if (isRegisterMode) {
+            // Cadastro
+            const res = await CloudSync.register(email, password);
+            if (res.session) {
+              showAlert('Conta criada com sucesso! Redirecionando para o mapa...', 'success');
+              setTimeout(() => {
+                window.location.href = 'index.html';
+              }, 1000);
+            } else {
+              showAlert('Cadastro realizado! Se o Supabase exigir confirmação por e-mail, verifique sua caixa de entrada.', 'success');
+              // Alterna para o modo de login
+              setTimeout(() => {
+                toggleModeBtn.click();
+              }, 2500);
+            }
+          } else {
+            // Login
+            await CloudSync.login(email, password);
+            showAlert('Login realizado com sucesso! Carregando mapa...', 'success');
+            setTimeout(() => {
+              window.location.href = 'index.html';
+            }, 800);
+          }
+        } catch (err) {
+          console.error('Erro na autenticação:', err);
+          let msg = err.message || 'Falha ao autenticar.';
+          if (msg.includes('Invalid login credentials')) {
+            msg = 'E-mail ou senha incorretos.';
+          } else if (msg.includes('Email not confirmed')) {
+            msg = 'E-mail ainda não confirmado. Verifique sua caixa de entrada.';
+          } else if (msg.includes('User already registered')) {
+            msg = 'Este e-mail já possui cadastro. Faça login.';
+          }
+          showAlert(msg, 'error');
+        } finally {
+          submitBtn.disabled = false;
+          btnArrow.className = 'ri-arrow-right-line btn-arrow';
+          submitBtnText.textContent = isRegisterMode ? 'Create Account' : 'Sign In';
+        }
+      });
+
+      // Funções do Modal de Configuração
+      function openConfigModal() {
+        if (configModal) configModal.classList.add('open');
+      }
+
+      function closeConfigModal() {
+        if (configModal) configModal.classList.remove('open');
+      }
+
+      if (openConfigModalBtn) openConfigModalBtn.addEventListener('click', openConfigModal);
+      if (closeConfigModalBtn) closeConfigModalBtn.addEventListener('click', closeConfigModal);
+
+      if (configModal) {
+        configModal.addEventListener('click', (e) => {
+          if (e.target === configModal) closeConfigModal();
+        });
+      }
+
+      if (saveConfigBtn) {
+        saveConfigBtn.addEventListener('click', () => {
+          const url = cfgUrlInput.value.trim();
+          const key = cfgKeyInput.value.trim();
+
+          if (!url || !key) {
+            alert('Preencha a URL e a Anon Key do Supabase.');
+            return;
+          }
+
+          if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            alert('A URL do Supabase deve começar com https://');
+            return;
+          }
+
+          localStorage.setItem('citymap_supabase_url', url);
+          localStorage.setItem('citymap_supabase_key', key);
+          window.SUPABASE_CONFIG = { url, anonKey: key };
+
+          const ok = CloudSync.init();
+          if (ok) {
+            closeConfigModal();
+            showAlert('Nuvem conectada com sucesso! Agora você pode fazer seu login.', 'success');
+          } else {
+            alert('Não foi possível conectar ao Supabase com as credenciais informadas.');
+          }
+        });
+      }
+
+    });
+  </script>
+
+</body>
+</html>
