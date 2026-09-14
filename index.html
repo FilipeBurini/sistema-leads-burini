@@ -40,6 +40,36 @@
           </div>
         </div>
         <div class="sidebar-header-actions">
+          <div class="user-auth-wrapper">
+            <button id="userAuthBtn" class="auth-btn" title="Entrar / Conectar na Nuvem">
+              <i class="ri-user-3-line"></i>
+              <span id="userAuthText">Entrar</span>
+            </button>
+            <div class="user-profile-dropdown" id="userProfileDropdown">
+              <div class="user-profile-header">
+                <i class="ri-user-smile-fill user-avatar-icon"></i>
+                <div class="user-profile-info">
+                  <strong id="userProfileEmail">usuario@email.com</strong>
+                  <span id="userProfileRole">Corretor / Vendedor</span>
+                </div>
+              </div>
+              <div class="user-profile-menu">
+                <button type="button" id="syncToCloudBtn">
+                  <i class="ri-upload-cloud-2-line"></i> Subir Base para Nuvem
+                </button>
+                <button type="button" id="syncFromCloudBtn">
+                  <i class="ri-download-cloud-2-line"></i> Puxar da Nuvem
+                </button>
+                <button type="button" id="openCloudConfigBtn">
+                  <i class="ri-settings-4-line"></i> Configurar Supabase
+                </button>
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 6px 0;">
+                <button type="button" id="logoutBtn" class="danger-btn">
+                  <i class="ri-logout-box-r-line"></i> Sair da Conta
+                </button>
+              </div>
+            </div>
+          </div>
           <button id="toggleSidebarBtn" class="icon-btn desktop-only" title="Recolher painel">
             <i class="ri-side-bar-line"></i>
           </button>
@@ -47,6 +77,15 @@
             <i class="ri-close-line"></i>
           </button>
         </div>
+      </div>
+
+      <!-- BARRA DE STATUS DA NUVEM (SUPABASE) -->
+      <div class="cloud-status-strip" id="cloudStatusStrip" title="Status da sincronização em tempo real">
+        <div class="cloud-status-left">
+          <span class="cloud-dot offline" id="cloudStatusDot"></span>
+          <span class="cloud-status-text" id="cloudStatusText">Modo Local (Offline)</span>
+        </div>
+        <button class="cloud-action-link" id="cloudActionBtn">Conectar</button>
       </div>
 
       <!-- BARRA DE PESQUISA -->
@@ -600,6 +639,83 @@
     </div>
   </div>
 
+  <!-- MODAL DE AUTENTICAÇÃO E NUVEM SUPABASE -->
+  <div class="modal-backdrop" id="authModal">
+    <div class="modal auth-modal-box">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <i class="ri-cloud-fill" style="color: #38bdf8;"></i>
+          <h3 id="authModalTitle">Acesso ao Sistema em Nuvem</h3>
+        </div>
+        <button type="button" class="close-modal-btn" id="closeAuthModalBtn">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <!-- ABAS DO MODAL: ENTRAR / CRIAR CONTA / CONFIGURAR -->
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" id="tabLoginBtn">
+          <i class="ri-login-box-line"></i> Entrar
+        </button>
+        <button type="button" class="auth-tab" id="tabRegisterBtn">
+          <i class="ri-user-add-line"></i> Criar Conta
+        </button>
+        <button type="button" class="auth-tab" id="tabConfigBtn">
+          <i class="ri-settings-3-line"></i> Conectar Nuvem
+        </button>
+      </div>
+
+      <div class="modal-body auth-modal-body">
+        <!-- FORMULÁRIO DE LOGIN / CADASTRO -->
+        <form id="authForm">
+          <div class="form-group" id="authEmailGroup">
+            <label for="authEmail">E-mail de Acesso</label>
+            <div class="input-with-icon">
+              <i class="ri-mail-line"></i>
+              <input type="email" id="authEmail" placeholder="seuemail@empresa.com" required autocomplete="email">
+            </div>
+          </div>
+
+          <div class="form-group" id="authPasswordGroup">
+            <label for="authPassword">Senha</label>
+            <div class="input-with-icon">
+              <i class="ri-lock-2-line"></i>
+              <input type="password" id="authPassword" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+          </div>
+
+          <div id="authAlertBox" class="auth-alert-box" style="display: none;"></div>
+
+          <div class="auth-actions-row">
+            <button type="submit" class="btn btn-primary btn-block" id="authSubmitBtn">
+              <i class="ri-login-circle-line"></i> Entrar
+            </button>
+          </div>
+        </form>
+
+        <!-- SEÇÃO DE CONFIGURAÇÃO DE CHAVES SUPABASE -->
+        <div id="supabaseConfigSection" style="display: none;">
+          <p class="auth-config-help">
+            Para sincronizar com sua própria nuvem gratuita, insira abaixo a <strong>URL</strong> e a <strong>Anon Key</strong> do seu projeto Supabase:
+          </p>
+          <div class="form-group">
+            <label for="inputSupabaseUrl">Supabase Project URL</label>
+            <input type="text" id="inputSupabaseUrl" placeholder="https://xyzcompany.supabase.co">
+          </div>
+          <div class="form-group">
+            <label for="inputSupabaseKey">Supabase Anon Key (Public API Key)</label>
+            <textarea id="inputSupabaseKey" rows="3" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
+          </div>
+          <div class="auth-actions-row" style="margin-top: 1rem;">
+            <button type="button" class="btn btn-primary btn-block" id="saveSupabaseConfigBtn">
+              <i class="ri-save-line"></i> Salvar e Conectar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST DE NOTIFICAÇÃO -->
   <div class="toast" id="toast">
     <i class="toast-icon ri-checkbox-circle-fill"></i>
@@ -615,6 +731,11 @@
 
   <!-- Base de Dados Padrão (Compatível com file:// e localhost sem bloqueio CORS) -->
   <script src="data/default-places.js"></script>
+
+  <!-- Supabase Cloud Backend & Sincronização em Tempo Real -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="supabase-client.js"></script>
 
   <!-- App Core JS -->
   <script src="app.js"></script>

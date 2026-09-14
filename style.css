@@ -2721,3 +2721,284 @@ body {
   pointer-events: none !important;
   user-select: none !important;
 }
+
+/* ==========================================
+   AUTENTICAÇÃO & NUVEM SUPABASE (UI STYLES)
+   ========================================== */
+
+/* Botão de Autenticação no Header */
+.user-auth-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.auth-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  padding: 0.38rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.auth-btn:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.auth-btn.logged-in {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
+.auth-btn.logged-in:hover {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+/* Dropdown do Perfil */
+.user-profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  padding: 0.75rem;
+  z-index: 1100;
+  display: none;
+  backdrop-filter: blur(12px);
+}
+
+.user-profile-dropdown.show {
+  display: block;
+  animation: fadeInDown 0.2s ease-out;
+}
+
+.user-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0.5rem;
+}
+
+.user-avatar-icon {
+  font-size: 1.8rem;
+  color: #38bdf8;
+}
+
+.user-profile-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.user-profile-info strong {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-profile-info span {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.user-profile-menu button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: var(--transition);
+}
+
+.user-profile-menu button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.user-profile-menu button.danger-btn {
+  color: #f43f5e;
+}
+
+.user-profile-menu button.danger-btn:hover {
+  background: rgba(244, 63, 94, 0.12);
+  color: #fb7185;
+}
+
+/* Barra de Status da Nuvem */
+.cloud-status-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 1.25rem;
+  background: rgba(15, 23, 42, 0.5);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.74rem;
+}
+
+.cloud-status-left {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.cloud-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.cloud-dot.online {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.cloud-dot.offline {
+  background: #94a3b8;
+}
+
+.cloud-dot.syncing {
+  background: #38bdf8;
+  animation: pulse 1s infinite;
+}
+
+.cloud-status-text {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.cloud-action-link {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.cloud-action-link:hover {
+  color: #7dd3fc;
+}
+
+/* Modal de Autenticação */
+.auth-modal-box {
+  max-width: 440px;
+  background: var(--bg-card);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.7);
+}
+
+.auth-tabs {
+  display: flex;
+  background: rgba(15, 23, 42, 0.6);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.auth-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.7rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.auth-tab:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.auth-tab.active {
+  color: #38bdf8;
+  border-bottom-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.auth-modal-body {
+  padding: 1.25rem;
+}
+
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-icon i {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.input-with-icon input {
+  width: 100%;
+  padding-left: 2.35rem;
+}
+
+.auth-alert-box {
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+  line-height: 1.35;
+}
+
+.auth-alert-box.error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.auth-alert-box.success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+}
+
+.auth-config-help {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+
+.btn-block {
+  width: 100%;
+}

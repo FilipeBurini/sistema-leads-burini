@@ -85,6 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadInitialPlaces();
   setupEventListeners();
   setupHorizontalScrollHelpers();
+  setupCloudSyncIntegration();
   updateUI();
 
   // Atualização periódica do status de funcionamento a cada 60 segundos
@@ -2146,6 +2147,13 @@ function updateUserLocationMarker(lat, lng, accuracy) {
 
 // --- AÇÕES GLOBAIS CRM (FUNIL, RETORNOS, DISTÂNCIA & MAQUININHA) ---
 
+// Helper para sincronizar lead com a nuvem (Supabase)
+function syncPlaceToCloud(place) {
+  if (window.CloudSync && CloudSync.isConfigured && CloudSync.currentUser) {
+    CloudSync.updateLead(place).catch(err => console.warn('Erro ao sincronizar lead com a nuvem:', err));
+  }
+}
+
 // 1. Mudança de estágio no Funil
 window.setPlaceCrmStage = function(placeId, stage) {
   const place = AppState.places.find(p => p.id === placeId);
@@ -2161,6 +2169,7 @@ window.setPlaceCrmStage = function(placeId, stage) {
   }
 
   savePlaces();
+  syncPlaceToCloud(place);
   updateUI();
 
   const labels = {
@@ -2193,6 +2202,7 @@ window.savePlaceFollowUp = function(placeId) {
   if (timeInput) place.followUpTime = timeInput.value;
 
   savePlaces();
+  syncPlaceToCloud(place);
   updateUI();
   showToast(`Retorno agendado para ${place.followUpDate} ${place.followUpTime || ''}`);
 };
@@ -2211,6 +2221,7 @@ window.setQuickFollowUp = function(placeId, addDays, defaultTime = '10:00') {
   place.followUpTime = defaultTime;
 
   savePlaces();
+  syncPlaceToCloud(place);
   updateUI();
   selectPlace(placeId, false);
   showToast(`Retorno agendado para ${dd}/${mm} às ${defaultTime}!`);
@@ -2225,6 +2236,7 @@ window.clearPlaceFollowUp = function(placeId) {
   delete place.followUpNotes;
 
   savePlaces();
+  syncPlaceToCloud(place);
   updateUI();
   selectPlace(placeId, false);
   showToast('Agendamento de retorno cancelado.');
@@ -2236,6 +2248,7 @@ window.savePlaceFollowUpNotes = function(placeId, notes) {
 
   place.followUpNotes = notes;
   savePlaces();
+  syncPlaceToCloud(place);
 };
 
 window.updatePlaceCardMachine = function(placeId, machine) {
@@ -2244,6 +2257,7 @@ window.updatePlaceCardMachine = function(placeId, machine) {
 
   place.cardMachine = machine;
   savePlaces();
+  syncPlaceToCloud(place);
   updateUI();
   showToast(`Maquininha atualizada para: ${machine || 'Não Informado'}`);
 };
@@ -2255,6 +2269,7 @@ window.savePlaceCrmNotes = function(placeId, notes) {
   if (place.crmNotes !== notes) {
     place.crmNotes = notes;
     savePlaces();
+    syncPlaceToCloud(place);
     showToast('Anotações de negociação salvas!');
   }
 };
@@ -2557,4 +2572,427 @@ function getPlaceOpenStatus(place, refDate = new Date()) {
       hoursText: raw
     };
   }
+}
+
+// --- INTEGRAÇÃO COM NUVEM SUPABASE & SINCRONIZAÇÃO EM TEMPO REAL ---
+function setupCloudSyncIntegration() {
+  if (!window.CloudSync) return;
+
+  // DOM Elements
+  const userAuthBtn = document.getElementById('userAuthBtn');
+  const userAuthText = document.getElementById('userAuthText');
+  const userProfileDropdown = document.getElementById('userProfileDropdown');
+  const userProfileEmail = document.getElementById('userProfileEmail');
+  const cloudStatusStrip = document.getElementById('cloudStatusStrip');
+  const cloudStatusDot = document.getElementById('cloudStatusDot');
+  const cloudStatusText = document.getElementById('cloudStatusText');
+  const cloudActionBtn = document.getElementById('cloudActionBtn');
+
+  // Modal elements
+  const authModal = document.getElementById('authModal');
+  const closeAuthModalBtn = document.getElementById('closeAuthModalBtn');
+  const tabLoginBtn = document.getElementById('tabLoginBtn');
+  const tabRegisterBtn = document.getElementById('tabRegisterBtn');
+  const tabConfigBtn = document.getElementById('tabConfigBtn');
+  const authForm = document.getElementById('authForm');
+  const authModalTitle = document.getElementById('authModalTitle');
+  const authSubmitBtn = document.getElementById('authSubmitBtn');
+  const authAlertBox = document.getElementById('authAlertBox');
+  const supabaseConfigSection = document.getElementById('supabaseConfigSection');
+  const inputSupabaseUrl = document.getElementById('inputSupabaseUrl');
+  const inputSupabaseKey = document.getElementById('inputSupabaseKey');
+  const saveSupabaseConfigBtn = document.getElementById('saveSupabaseConfigBtn');
+
+  // Dropdown actions
+  const syncToCloudBtn = document.getElementById('syncToCloudBtn');
+  const syncFromCloudBtn = document.getElementById('syncFromCloudBtn');
+  const openCloudConfigBtn = document.getElementById('openCloudConfigBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  let activeAuthTab = 'login'; // 'login' | 'register' | 'config'
+
+  // Pre-fill config inputs
+  if (inputSupabaseUrl) inputSupabaseUrl.value = localStorage.getItem('citymap_supabase_url') || (window.SUPABASE_CONFIG?.url) || '';
+  if (inputSupabaseKey) inputSupabaseKey.value = localStorage.getItem('citymap_supabase_key') || (window.SUPABASE_CONFIG?.anonKey) || '';
+
+  function updateStatusUI(user) {
+    if (!CloudSync.isConfigured) {
+      if (cloudStatusDot) { cloudStatusDot.className = 'cloud-dot offline'; }
+      if (cloudStatusText) { cloudStatusText.textContent = 'Modo Local (Offline)'; }
+      if (cloudActionBtn) { cloudActionBtn.textContent = 'Conectar'; cloudActionBtn.style.display = 'inline-block'; }
+      if (userAuthText) { userAuthText.textContent = 'Entrar'; }
+      if (userAuthBtn) { userAuthBtn.title = 'Configurar Nuvem / Entrar'; }
+      return;
+    }
+
+    if (user) {
+      if (cloudStatusDot) { cloudStatusDot.className = 'cloud-dot online'; }
+      const displayEmail = user.email || 'Usuário';
+      if (cloudStatusText) { cloudStatusText.textContent = `Nuvem Ativa (${displayEmail})`; }
+      if (cloudActionBtn) { cloudActionBtn.textContent = 'Sincronizar'; cloudActionBtn.style.display = 'inline-block'; }
+      if (userAuthText) {
+        const shortName = displayEmail.split('@')[0];
+        userAuthText.textContent = shortName.length > 12 ? shortName.substring(0, 10) + '...' : shortName;
+      }
+      if (userAuthBtn) { userAuthBtn.title = `Conectado como ${displayEmail}`; }
+      if (userProfileEmail) { userProfileEmail.textContent = displayEmail; }
+    } else {
+      if (cloudStatusDot) { cloudStatusDot.className = 'cloud-dot ready'; }
+      if (cloudStatusText) { cloudStatusText.textContent = 'Nuvem Pronta (Faça Login)'; }
+      if (cloudActionBtn) { cloudActionBtn.textContent = 'Entrar'; cloudActionBtn.style.display = 'inline-block'; }
+      if (userAuthText) { userAuthText.textContent = 'Entrar'; }
+      if (userAuthBtn) { userAuthBtn.title = 'Entrar / Criar Conta'; }
+    }
+  }
+
+  function openAuthModal(tab = 'login') {
+    switchAuthTab(tab);
+    if (authAlertBox) { authAlertBox.style.display = 'none'; authAlertBox.textContent = ''; }
+    if (authModal) authModal.classList.add('open');
+  }
+
+  function closeAuthModal() {
+    if (authModal) authModal.classList.remove('open');
+  }
+
+  function switchAuthTab(tab) {
+    activeAuthTab = tab;
+    [tabLoginBtn, tabRegisterBtn, tabConfigBtn].forEach(b => b && b.classList.remove('active'));
+
+    if (tab === 'login') {
+      if (tabLoginBtn) tabLoginBtn.classList.add('active');
+      if (authForm) authForm.style.display = 'block';
+      if (supabaseConfigSection) supabaseConfigSection.style.display = 'none';
+      if (authModalTitle) authModalTitle.textContent = 'Acesso ao Sistema em Nuvem';
+      if (authSubmitBtn) authSubmitBtn.innerHTML = '<i class="ri-login-circle-line"></i> Entrar';
+    } else if (tab === 'register') {
+      if (tabRegisterBtn) tabRegisterBtn.classList.add('active');
+      if (authForm) authForm.style.display = 'block';
+      if (supabaseConfigSection) supabaseConfigSection.style.display = 'none';
+      if (authModalTitle) authModalTitle.textContent = 'Criar Nova Conta';
+      if (authSubmitBtn) authSubmitBtn.innerHTML = '<i class="ri-user-add-line"></i> Criar Conta';
+    } else if (tab === 'config') {
+      if (tabConfigBtn) tabConfigBtn.classList.add('active');
+      if (authForm) authForm.style.display = 'none';
+      if (supabaseConfigSection) supabaseConfigSection.style.display = 'block';
+      if (authModalTitle) authModalTitle.textContent = 'Conectar Banco Supabase';
+    }
+  }
+
+  // Event Listeners for Header Auth & Profile
+  if (userAuthBtn) {
+    userAuthBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!CloudSync.currentUser) {
+        if (!CloudSync.isConfigured) {
+          openAuthModal('config');
+        } else {
+          openAuthModal('login');
+        }
+      } else {
+        if (userProfileDropdown) userProfileDropdown.classList.toggle('open');
+      }
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (userProfileDropdown && !userProfileDropdown.contains(e.target) && e.target !== userAuthBtn) {
+      userProfileDropdown.classList.remove('open');
+    }
+  });
+
+  if (cloudActionBtn) {
+    cloudActionBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!CloudSync.isConfigured) {
+        openAuthModal('config');
+      } else if (!CloudSync.currentUser) {
+        openAuthModal('login');
+      } else {
+        syncFromCloud(true);
+      }
+    });
+  }
+
+  if (cloudStatusStrip) {
+    cloudStatusStrip.addEventListener('click', (e) => {
+      if (e.target === cloudActionBtn) return;
+      if (!CloudSync.isConfigured) {
+        openAuthModal('config');
+      } else if (!CloudSync.currentUser) {
+        openAuthModal('login');
+      } else {
+        if (userProfileDropdown) userProfileDropdown.classList.toggle('open');
+      }
+    });
+  }
+
+  if (closeAuthModalBtn) {
+    closeAuthModalBtn.addEventListener('click', closeAuthModal);
+  }
+
+  if (tabLoginBtn) tabLoginBtn.addEventListener('click', () => switchAuthTab('login'));
+  if (tabRegisterBtn) tabRegisterBtn.addEventListener('click', () => switchAuthTab('register'));
+  if (tabConfigBtn) tabConfigBtn.addEventListener('click', () => switchAuthTab('config'));
+
+  if (openCloudConfigBtn) {
+    openCloudConfigBtn.addEventListener('click', () => {
+      if (userProfileDropdown) userProfileDropdown.classList.remove('open');
+      openAuthModal('config');
+    });
+  }
+
+  // Save Supabase Configuration
+  if (saveSupabaseConfigBtn) {
+    saveSupabaseConfigBtn.addEventListener('click', () => {
+      const url = inputSupabaseUrl ? inputSupabaseUrl.value.trim() : '';
+      const key = inputSupabaseKey ? inputSupabaseKey.value.trim() : '';
+
+      if (!url || !key) {
+        alert('Por favor, informe a URL do projeto e a Anon Key do Supabase.');
+        return;
+      }
+
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        alert('A URL deve começar com https:// (ex: https://xyzcompany.supabase.co)');
+        return;
+      }
+
+      localStorage.setItem('citymap_supabase_url', url);
+      localStorage.setItem('citymap_supabase_key', key);
+      window.SUPABASE_CONFIG = { url, anonKey: key };
+
+      const configured = CloudSync.init();
+      if (configured) {
+        updateStatusUI(CloudSync.currentUser);
+        showToast('Credenciais da nuvem salvas com sucesso!');
+        switchAuthTab('login');
+        if (authAlertBox) {
+          authAlertBox.className = 'auth-alert-box success';
+          authAlertBox.textContent = 'Supabase conectado com sucesso! Agora você pode entrar com seu e-mail e senha.';
+          authAlertBox.style.display = 'block';
+        }
+      } else {
+        alert('Não foi possível conectar ao Supabase com estas credenciais. Verifique a URL e a Anon Key.');
+      }
+    });
+  }
+
+  // Auth Form Submit (Login or Register)
+  if (authForm) {
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('authEmail')?.value?.trim();
+      const password = document.getElementById('authPassword')?.value;
+
+      if (!CloudSync.isConfigured) {
+        if (authAlertBox) {
+          authAlertBox.className = 'auth-alert-box error';
+          authAlertBox.textContent = 'Configure a URL e a Anon Key do Supabase na aba "Conectar Nuvem" antes de prosseguir.';
+          authAlertBox.style.display = 'block';
+        }
+        return;
+      }
+
+      if (authAlertBox) { authAlertBox.style.display = 'none'; }
+      if (authSubmitBtn) {
+        authSubmitBtn.disabled = true;
+        authSubmitBtn.innerHTML = '<i class="ri-loader-4-line animate-spin"></i> Processando...';
+      }
+
+      try {
+        if (activeAuthTab === 'login') {
+          await CloudSync.login(email, password);
+          showToast(`Bem-vindo, ${email}!`);
+          closeAuthModal();
+          // Auto sync from cloud
+          await syncFromCloud(false);
+        } else if (activeAuthTab === 'register') {
+          const res = await CloudSync.register(email, password);
+          if (res.session) {
+            showToast('Conta criada com sucesso!');
+            closeAuthModal();
+          } else {
+            if (authAlertBox) {
+              authAlertBox.className = 'auth-alert-box success';
+              authAlertBox.textContent = 'Conta criada com sucesso! Verifique seu e-mail para confirmar o cadastro se necessário, ou entre.';
+              authAlertBox.style.display = 'block';
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Erro de autenticação:', err);
+        if (authAlertBox) {
+          authAlertBox.className = 'auth-alert-box error';
+          let msg = err.message || 'Erro ao processar autenticação.';
+          if (msg.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
+          if (msg.includes('Email not confirmed')) msg = 'E-mail ainda não confirmado. Verifique sua caixa de entrada.';
+          authAlertBox.textContent = msg;
+          authAlertBox.style.display = 'block';
+        }
+      } finally {
+        if (authSubmitBtn) {
+          authSubmitBtn.disabled = false;
+          authSubmitBtn.innerHTML = activeAuthTab === 'login' 
+            ? '<i class="ri-login-circle-line"></i> Entrar' 
+            : '<i class="ri-user-add-line"></i> Criar Conta';
+        }
+      }
+    });
+  }
+
+  // Logout Handler
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await CloudSync.logout();
+        if (userProfileDropdown) userProfileDropdown.classList.remove('open');
+        showToast('Desconectado com sucesso.');
+        updateStatusUI(null);
+      } catch (err) {
+        console.error('Erro ao sair:', err);
+      }
+    });
+  }
+
+  // Sync to Cloud (Bulk Upload)
+  async function syncToCloud() {
+    if (!CloudSync.currentUser) {
+      openAuthModal('login');
+      return;
+    }
+
+    if (!confirm(`Deseja subir todos os ${AppState.places.length} locais para o banco de dados na nuvem? Isso garantirá que toda a equipe acesse os mesmos dados.`)) {
+      return;
+    }
+
+    if (userProfileDropdown) userProfileDropdown.classList.remove('open');
+    if (cloudStatusDot) cloudStatusDot.className = 'cloud-dot syncing';
+    showToast(`Iniciando upload de ${AppState.places.length} locais...`);
+
+    try {
+      await CloudSync.bulkUploadPlaces(AppState.places, (uploaded, total) => {
+        showToast(`Sincronizando: ${uploaded} de ${total} locais na nuvem...`);
+      });
+      showToast(`✔ Sucesso! Todos os ${AppState.places.length} locais foram sincronizados na nuvem!`);
+    } catch (err) {
+      console.error('Erro ao sincronizar com nuvem:', err);
+      alert('Erro ao enviar dados para a nuvem: ' + (err.message || err));
+    } finally {
+      updateStatusUI(CloudSync.currentUser);
+    }
+  }
+
+  if (syncToCloudBtn) {
+    syncToCloudBtn.addEventListener('click', syncToCloud);
+  }
+
+  // Sync from Cloud (Fetch All)
+  async function syncFromCloud(showFeedback = true) {
+    if (!CloudSync.currentUser && !CloudSync.isConfigured) return;
+
+    if (showFeedback) {
+      if (userProfileDropdown) userProfileDropdown.classList.remove('open');
+      if (cloudStatusDot) cloudStatusDot.className = 'cloud-dot syncing';
+      showToast('Buscando atualizações na nuvem...');
+    }
+
+    try {
+      const cloudLeads = await CloudSync.fetchAllLeads();
+      if (cloudLeads && cloudLeads.length > 0) {
+        const placesMap = new Map(AppState.places.map(p => [p.id, p]));
+        
+        let newCount = 0;
+        let updatedCount = 0;
+
+        cloudLeads.forEach(cl => {
+          if (placesMap.has(cl.id)) {
+            const current = placesMap.get(cl.id);
+            // Atualiza se houver dados novos
+            placesMap.set(cl.id, {
+              ...current,
+              ...cl,
+              visited: cl.visited !== undefined ? cl.visited : current.visited,
+              crmStage: cl.crmStage || current.crmStage,
+              cardMachine: cl.cardMachine || current.cardMachine,
+              crmNotes: cl.crmNotes || current.crmNotes,
+              followUpDate: cl.followUpDate || current.followUpDate,
+              followUpTime: cl.followUpTime || current.followUpTime,
+              followUpNotes: cl.followUpNotes || current.followUpNotes
+            });
+            updatedCount++;
+          } else {
+            placesMap.set(cl.id, enrichPlace(cl));
+            newCount++;
+          }
+        });
+
+        AppState.places = Array.from(placesMap.values());
+        savePlaces();
+        updateUI();
+
+        if (showFeedback) {
+          showToast(`Nuvem sincronizada: ${cloudLeads.length} registros obtidos!`);
+        }
+      } else if (showFeedback) {
+        showToast('Nenhum dado na nuvem ainda. Suba a base inicial com o botão "Subir Base para Nuvem".');
+      }
+    } catch (err) {
+      console.error('Erro ao puxar da nuvem:', err);
+      if (showFeedback) showToast('Erro ao sincronizar com a nuvem.');
+    } finally {
+      updateStatusUI(CloudSync.currentUser);
+    }
+  }
+
+  if (syncFromCloudBtn) {
+    syncFromCloudBtn.addEventListener('click', () => syncFromCloud(true));
+  }
+
+  // Realtime Lead Updates Listener (WebSockets)
+  CloudSync.onLeadUpdate((incomingLead) => {
+    if (!incomingLead || !incomingLead.id) return;
+
+    const idx = AppState.places.findIndex(p => p.id === incomingLead.id);
+    if (idx !== -1) {
+      // Merge lead properties
+      const existing = AppState.places[idx];
+      AppState.places[idx] = {
+        ...existing,
+        ...incomingLead,
+        crmStage: incomingLead.crmStage || existing.crmStage,
+        cardMachine: incomingLead.cardMachine || existing.cardMachine,
+        crmNotes: incomingLead.crmNotes !== undefined ? incomingLead.crmNotes : existing.crmNotes,
+        followUpDate: incomingLead.followUpDate !== undefined ? incomingLead.followUpDate : existing.followUpDate,
+        followUpTime: incomingLead.followUpTime !== undefined ? incomingLead.followUpTime : existing.followUpTime,
+        followUpNotes: incomingLead.followUpNotes !== undefined ? incomingLead.followUpNotes : existing.followUpNotes,
+        visited: incomingLead.visited !== undefined ? incomingLead.visited : existing.visited,
+        visitedAt: incomingLead.visitedAt || existing.visitedAt
+      };
+    } else {
+      AppState.places.push(enrichPlace(incomingLead));
+    }
+
+    savePlaces();
+    updateUI();
+
+    // Se o drawer deste local estiver aberto, recarrega o drawer
+    if (AppState.activePlaceId === incomingLead.id) {
+      selectPlace(incomingLead.id, false);
+    }
+
+    showToast(`⚡ Nuvem em Tempo Real: Lead "${incomingLead.name}" atualizado!`);
+  });
+
+  // Auth State Change Listener
+  CloudSync.onAuthChange((event, user) => {
+    updateStatusUI(user);
+    if (user && event === 'SIGNED_IN') {
+      syncFromCloud(false);
+    }
+  });
+
+  // Initial Boot
+  CloudSync.init();
+  updateStatusUI(CloudSync.currentUser);
 }
