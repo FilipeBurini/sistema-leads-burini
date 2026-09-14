@@ -422,12 +422,14 @@
         } catch (err) {
           console.error('Erro na autenticação:', err);
           let msg = err.message || 'Falha ao autenticar.';
-          if (msg.includes('Invalid login credentials')) {
+          if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('TypeError')) {
+            msg = 'Não foi possível conectar ao Supabase (Failed to fetch). Verifique se a URL do projeto (https://...supabase.co) e a Anon Key estão corretas na engrenagem.';
+          } else if (msg.includes('Invalid login credentials')) {
             msg = 'E-mail ou senha incorretos.';
           } else if (msg.includes('Email not confirmed')) {
             msg = 'E-mail ainda não confirmado. Verifique sua caixa de entrada.';
           } else if (msg.includes('User already registered')) {
-            msg = 'Este e-mail já possui cadastro. Faça login.';
+            msg = 'Este e-mail já possui cadastro. Clique em "Sign In" para entrar.';
           }
           showAlert(msg, 'error');
         } finally {
@@ -457,7 +459,7 @@
 
       if (saveConfigBtn) {
         saveConfigBtn.addEventListener('click', () => {
-          const url = cfgUrlInput.value.trim();
+          let url = cfgUrlInput.value.trim().replace(/\/+$/, '');
           const key = cfgKeyInput.value.trim();
 
           if (!url || !key) {
@@ -465,21 +467,28 @@
             return;
           }
 
+          if (url.includes('supabase.com/dashboard/project')) {
+            alert('Atenção: Você colou o link do painel de controle do Supabase!\n\nA URL correta fica em: Project Settings ⚙️ -> API -> Project URL\nEla termina sempre com .supabase.co (ex: https://abcdef.supabase.co)');
+            return;
+          }
+
           if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            alert('A URL do Supabase deve começar com https://');
+            alert('A URL do Supabase deve começar com https:// (ex: https://abcdef.supabase.co)');
             return;
           }
 
           localStorage.setItem('citymap_supabase_url', url);
           localStorage.setItem('citymap_supabase_key', key);
-          window.SUPABASE_CONFIG = { url, anonKey: key };
+          window.SUPABASE_CONFIG = window.SUPABASE_CONFIG || {};
+          window.SUPABASE_CONFIG.url = url;
+          window.SUPABASE_CONFIG.anonKey = key;
 
           const ok = CloudSync.init();
           if (ok) {
             closeConfigModal();
-            showAlert('Nuvem conectada com sucesso! Agora você pode fazer seu login.', 'success');
+            showAlert('Nuvem conectada com sucesso! Agora você pode criar sua conta ou entrar.', 'success');
           } else {
-            alert('Não foi possível conectar ao Supabase com as credenciais informadas.');
+            alert('Não foi possível conectar ao Supabase com as credenciais informadas. Verifique a URL e a Chave.');
           }
         });
       }

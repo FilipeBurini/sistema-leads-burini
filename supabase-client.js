@@ -86,6 +86,15 @@ const CloudSync = {
     if (error) throw error;
   },
 
+  isAdmin(user = this.currentUser) {
+    if (!user) return false;
+    const email = (user.email || '').toLowerCase().trim();
+    const configAdmins = (window.SUPABASE_CONFIG?.adminEmails || []).map(e => e.toLowerCase().trim());
+    if (configAdmins.includes(email)) return true;
+    if (user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin') return true;
+    return false;
+  },
+
   onAuthChange(cb) {
     this.listeners.onAuthChange.push(cb);
   },

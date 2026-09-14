@@ -2636,6 +2636,16 @@ function setupCloudSyncIntegration() {
       }
       if (userAuthBtn) { userAuthBtn.title = `Conectado como ${displayEmail}`; }
       if (userProfileEmail) { userProfileEmail.textContent = displayEmail; }
+
+      const isAdmin = CloudSync.isAdmin ? CloudSync.isAdmin(user) : false;
+      const userProfileRoleEl = document.getElementById('userProfileRole');
+      if (userProfileRoleEl) {
+        userProfileRoleEl.textContent = isAdmin ? '👑 Administrador Master' : 'Corretor / Vendedor';
+        userProfileRoleEl.style.color = isAdmin ? '#fbbf24' : 'var(--text-muted)';
+        userProfileRoleEl.style.fontWeight = isAdmin ? '700' : '500';
+      }
+      if (openCloudConfigBtn) openCloudConfigBtn.style.display = isAdmin ? 'flex' : 'none';
+      if (syncToCloudBtn) syncToCloudBtn.style.display = isAdmin ? 'flex' : 'none';
     } else {
       if (cloudStatusDot) { cloudStatusDot.className = 'cloud-dot ready'; }
       if (cloudStatusText) { cloudStatusText.textContent = 'Nuvem Pronta (Faça Login)'; }
