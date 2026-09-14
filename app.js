@@ -28,6 +28,39 @@ const AppState = {
   map: null,
   markersGroup: null,
   tileLayers: {},
+  commercialSegmentFilter: 'high_turnover', // Padrão: Modo Giro Rápido ativado (foco nos alvos comerciais prioritários)
+  hideChains: true, // Ocultar grandes redes de supermercados por padrão para focar em comércios independentes
+  segmentIcons: {
+    all: 'ri-apps-line',
+    high_turnover: 'ri-flashlight-fill',
+    novo_cnpj: 'ri-file-text-line',
+    adega: 'ri-goblet-fill',
+    bar: 'ri-beer-fill',
+    restaurante: 'ri-restaurant-2-fill',
+    padaria: 'ri-cake-3-fill',
+    mercado_bairro: 'ri-shopping-cart-2-fill',
+    outro: 'ri-store-2-line'
+  },
+  segmentNames: {
+    all: 'Todos os Estabelecimentos',
+    high_turnover: '⚡ Giro Rápido (Prioritários)',
+    novo_cnpj: '🆕 Novos CNPJs (Recém Abertos)',
+    adega: 'Adegas & Bebidas',
+    bar: 'Bares & Pubs',
+    restaurante: 'Restaurantes & Lanches',
+    padaria: 'Padarias & Cafés',
+    mercado_bairro: 'Mercados de Bairro',
+    outro: 'Outros Comércios'
+  },
+  segmentColors: {
+    novo_cnpj: '#38bdf8',
+    adega: '#9333ea',
+    bar: '#f59e0b',
+    restaurante: '#ef4444',
+    padaria: '#eab308',
+    mercado_bairro: '#10b981',
+    outro: '#64748b'
+  },
   categoryIcons: {
     alimentacao: 'ri-restaurant-2-fill',
     comercio: 'ri-shopping-bag-3-fill',
@@ -51,6 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initMap();
   await loadInitialPlaces();
   setupEventListeners();
+  setupHorizontalScrollHelpers();
   updateUI();
 
   // Atualização periódica do status de funcionamento a cada 60 segundos
@@ -74,12 +108,12 @@ function initMap() {
 
   // Provedores de Tiles 100% Gratuitos e sem chave de API (OpenStreetMap e Esri)
   AppState.tileLayers = {
-    dark: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      className: 'map-tiles-dark',
-      maxZoom: 19
+    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 20
     }),
-    voyager: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    voyager: L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
     }),
@@ -89,8 +123,13 @@ function initMap() {
     })
   };
 
-  // Modo Claro (OpenStreetMap) como padrão do sistema
+  // OpenStreetMap padrão oficial e 100% limpo (sem nenhuma marca d'água de API key)
   AppState.tileLayers.voyager.addTo(AppState.map);
+
+  // Forçar recálculo de dimensões do mapa para evitar quadrantes cinzas
+  setTimeout(() => {
+    if (AppState.map) AppState.map.invalidateSize();
+  }, 250);
 
   // Grupo de marcadores com Cluster
   AppState.markersGroup = L.markerClusterGroup({
@@ -106,29 +145,95 @@ function initMap() {
   });
 }
 
+// --- ENRIQUECIMENTO E CLASSIFICAÇÃO COMERCIAL DOS LOCAIS ---
+function enrichPlace(p) {
+  if (!p) return p;
+  if (!p.commercialSegment || p.isHighTurnover === undefined) {
+    const chainRegex = /savegnago|tonin|atacad[aã]o|carrefour|p[aã]o de a[cç][uú]car|assai|assaí|dia%|tenda|ti[aã]ozinho|big compra|serv[\s-]?bem|irm[aã]os patroc[ií]nio|sebasti[aã]o lopes|supermercado lider/i;
+    p.isChain = chainRegex.test(p.name || '');
+
+    const fullText = ((p.subCategory || '') + ' ' + (p.name || '') + ' ' + (p.description || '')).toLowerCase();
+    if (/adega|bebida|distribuidora de bebida|dep[oó]sito de bebida/.test(fullText)) {
+      p.commercialSegment = 'adega';
+    } else if (/bar|boteco|pub|choperia|espet|cervej/.test(fullText)) {
+      p.commercialSegment = 'bar';
+    } else if (/padaria|panific|confeitaria|bolo|caf[eé]/.test(fullText)) {
+      p.commercialSegment = 'padaria';
+    } else if (/restaurante|pizz|lanche|hamburg|churrasc|pastel|comida|marmita|a[cç]ougue|gastronomia/.test(fullText)) {
+      p.commercialSegment = 'restaurante';
+    } else if (/supermercado|mini[\s-]?mercado|mini[\s-]?box|mercearia|hortifruti|varej[aã]o|emp[oó]rio|sacol[aã]o|armaz[eé]m/.test(fullText) && !p.isChain && !/roupa|confec|im[oó]ve|estamparia|pet|brech|studios|mentoria|digital|auto pe[cç]as/.test(fullText)) {
+      p.commercialSegment = 'mercado_bairro';
+    } else {
+      p.commercialSegment = 'outro';
+    }
+    p.isHighTurnover = (p.commercialSegment !== 'outro');
+  }
+  return p;
+}
+
 // --- CARREGAMENTO DE DADOS (LOCALSTORAGE OU DEFAULT JSON) ---
 async function loadInitialPlaces() {
+  const placesMap = new Map();
+
+  // 1. Prioridade Máxima: window.DEFAULT_PLACES_DATA (carregado via data/default-places.js, funciona 100% tanto em file:// quanto em http://)
+  if (window.DEFAULT_PLACES_DATA && Array.isArray(window.DEFAULT_PLACES_DATA) && window.DEFAULT_PLACES_DATA.length > 0) {
+    window.DEFAULT_PLACES_DATA.forEach(p => {
+      if (p && p.id) {
+        placesMap.set(p.id, enrichPlace(p));
+      }
+    });
+  } else {
+    // 2. Fallback caso carregado via servidor web sem script tag
+    try {
+      const res = await fetch('data/default-places.json?v=' + Date.now());
+      if (res.ok) {
+        const defaultList = await res.json();
+        defaultList.forEach(p => {
+          if (p && p.id) {
+            placesMap.set(p.id, enrichPlace(p));
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Não foi possível carregar default-places.json remotamente:', e);
+    }
+  }
+
+  // 3. Mescla com LocalStorage: Se o usuário já tinha cadastros ou modificações manuais, preserva-os
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
-      AppState.places = JSON.parse(saved);
-      return;
+      const savedPlaces = JSON.parse(saved);
+      savedPlaces.forEach(sp => {
+        if (sp && sp.id) {
+          const enriched = enrichPlace(sp);
+          if (placesMap.has(enriched.id)) {
+            // Preserva notas, status CRM e maquininha que o usuário possa ter editado
+            const base = placesMap.get(enriched.id);
+            placesMap.set(enriched.id, {
+              ...base,
+              visited: sp.visited !== undefined ? sp.visited : base.visited,
+              visitedAt: sp.visitedAt || base.visitedAt,
+              crmStage: sp.crmStage || base.crmStage,
+              crmNotes: sp.crmNotes || base.crmNotes,
+              cardMachine: sp.cardMachine || base.cardMachine,
+              followUpDate: sp.followUpDate || base.followUpDate,
+              followUpTime: sp.followUpTime || base.followUpTime,
+              followUpNotes: sp.followUpNotes || base.followUpNotes
+            });
+          } else {
+            // Local customizado cadastrado manualmente pelo usuário
+            placesMap.set(enriched.id, enriched);
+          }
+        }
+      });
     } catch (err) {
       console.error('Erro ao ler LocalStorage:', err);
     }
   }
 
-  // Se não existir, carrega do default-places.json
-  try {
-    const res = await fetch('data/default-places.json');
-    if (res.ok) {
-      AppState.places = await res.json();
-      savePlaces();
-    }
-  } catch (e) {
-    console.warn('Não foi possível carregar default-places.json, iniciando lista vazia.', e);
-    AppState.places = [];
-  }
+  AppState.places = Array.from(placesMap.values());
+  savePlaces();
 }
 
 function savePlaces() {
@@ -183,8 +288,24 @@ function filterPlaces() {
   const selectedMachines = AppState.selectedCardMachines;
   const radiusKm = AppState.radiusFilter;
   const userCoords = AppState.userCoordinates;
+  const segmentFilter = AppState.commercialSegmentFilter;
+  const hideChains = AppState.hideChains;
 
   AppState.filteredPlaces = AppState.places.filter(place => {
+    // 0. Filtro de Redes de Supermercados
+    if (hideChains && place.isChain) {
+      return false;
+    }
+
+    // 0.1 Filtro de Segmento Comercial / Giro Rápido / Novos CNPJs
+    if (segmentFilter === 'high_turnover') {
+      if (!place.isHighTurnover) return false;
+    } else if (segmentFilter === 'novo_cnpj') {
+      if (!place.cnpj && (!place.tags || !place.tags.includes('Novo CNPJ'))) return false;
+    } else if (segmentFilter !== 'all') {
+      if (place.commercialSegment !== segmentFilter) return false;
+    }
+
     // 1. Categoria Principal
     const matchCategory = selectedCats.includes(place.category);
 
@@ -225,10 +346,13 @@ function filterPlaces() {
       delete place._distanceMeters;
     }
 
-    // 6. Pesquisa Textual
+    // 6. Pesquisa Textual (com suporte ao segmento comercial)
+    const segmentLabel = (AppState.segmentNames[place.commercialSegment] || '').toLowerCase();
     const matchSearch = !query || 
       place.name.toLowerCase().includes(query) ||
       place.address.toLowerCase().includes(query) ||
+      segmentLabel.includes(query) ||
+      (place.commercialSegment && place.commercialSegment.toLowerCase().includes(query)) ||
       (place.cardMachine && place.cardMachine.toLowerCase().includes(query)) ||
       (place.crmNotes && place.crmNotes.toLowerCase().includes(query)) ||
       (place.followUpNotes && place.followUpNotes.toLowerCase().includes(query)) ||
@@ -256,6 +380,7 @@ function filterPlaces() {
 
 function updateCategoryCounts() {
   const counts = { alimentacao: 0, comercio: 0, saude: 0, lazer: 0, servicos: 0 };
+  const segCounts = { all: 0, high_turnover: 0, novo_cnpj: 0, adega: 0, bar: 0, restaurante: 0, padaria: 0, mercado_bairro: 0, outro: 0 };
   let leadCount = 0;
   let negotiatingCount = 0;
   let followUpCount = 0;
@@ -269,6 +394,25 @@ function updateCategoryCounts() {
     else if (stage === 'closed') closedCount++;
 
     if (p.followUpDate) followUpCount++;
+
+    // Segmentos Comerciais
+    if (!AppState.hideChains || !p.isChain) {
+      segCounts.all++;
+      if (p.isHighTurnover) segCounts.high_turnover++;
+      if (p.cnpj || (p.tags && p.tags.includes('Novo CNPJ'))) segCounts.novo_cnpj++;
+      const seg = p.commercialSegment || 'outro';
+      if (segCounts[seg] !== undefined) segCounts[seg]++;
+    }
+  });
+
+  // Atualizar badges do Foco Comercial
+  const elHt = document.getElementById('count-high-turnover');
+  if (elHt) elHt.textContent = segCounts.high_turnover;
+  const elChipAll = document.getElementById('chip-count-all');
+  if (elChipAll) elChipAll.textContent = segCounts.all;
+  ['novo_cnpj', 'adega', 'bar', 'restaurante', 'padaria', 'mercado_bairro', 'outro'].forEach(s => {
+    const elChip = document.getElementById(`chip-count-${s}`);
+    if (elChip) elChip.textContent = segCounts[s] || 0;
   });
 
   // Atualizar badges CRM do funil
@@ -454,6 +598,7 @@ function renderPlacesList() {
     const followUp = getFollowUpStatus(place);
 
     const machineBadge = place.cardMachine ? `<span class="mini-machine-badge" title="Maquininha: ${escapeHtml(place.cardMachine)}"><i class="ri-bank-card-line"></i> ${escapeHtml(place.cardMachine)}</span>` : '';
+    const cnpjBadge = place.cnpj ? `<span class="mini-machine-badge" style="border-color: rgba(56,189,248,0.35); color: #38bdf8; background: rgba(56,189,248,0.08);" title="Novo CNPJ: ${escapeHtml(place.cnpj)}"><i class="ri-file-text-line"></i> Novo CNPJ</span>` : '';
     
     // Badge de estágio no funil
     let stageDot = `<span class="crm-list-dot pending" title="A Visitar"><i class="ri-checkbox-blank-circle-line"></i></span>`;
@@ -484,14 +629,32 @@ function renderPlacesList() {
       </span>
     ` : '';
 
+    // Badges de Segmento Comercial e Lucratividade
+    const seg = place.commercialSegment || 'outro';
+    const segName = AppState.segmentNames[seg] || 'Comércio';
+    const segIcon = AppState.segmentIcons[seg] || 'ri-store-2-line';
+    const segmentBadge = `<span class="segment-label-tag seg-${seg}"><i class="${segIcon}"></i> ${segName}</span>`;
+
+    let turnoverBadge = '';
+    if (place.isChain) {
+      turnoverBadge = `<span class="chain-badge" title="Grande Rede Corporativa de Supermercados"><i class="ri-store-2-line"></i> Grande Rede</span>`;
+    } else if (place.isHighTurnover) {
+      turnoverBadge = `<span class="turnover-badge" title="Comércio de Alto Giro & Lucratividade Rápida"><i class="ri-flashlight-fill"></i> Giro Rápido</span>`;
+    } else if (seg === 'mercado_bairro') {
+      turnoverBadge = `<span class="local-independent-badge" title="Mercado Independente de Bairro"><i class="ri-checkbox-circle-line"></i> Independente</span>`;
+    }
+
     return `
       <div class="place-item ${isActive} ${stage === 'closed' ? 'place-visited' : ''} ${!openStatus.isOpen ? 'place-closed' : ''}" data-id="${place.id}" onclick="selectPlace('${place.id}', true)">
         <div class="place-item-left">
           ${stageDot}
-          <span class="place-item-dot" style="background: ${!openStatus.isOpen ? '#64748b' : `var(--color-${place.category}, var(--color-primary))`}"></span>
+          <span class="place-item-dot" style="background: ${!openStatus.isOpen ? '#64748b' : (AppState.segmentColors[seg] || 'var(--color-primary)')}"></span>
           <div class="place-item-info">
             <span class="place-item-name" title="${escapeHtml(place.name)}">${escapeHtml(place.name)}</span>
-            <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap; margin-top: 2px;">
+              ${segmentBadge}
+              ${turnoverBadge}
+              ${cnpjBadge}
               ${distanceBadge}
               ${machineBadge}
               ${followUpTag}
@@ -499,9 +662,6 @@ function renderPlacesList() {
             </div>
           </div>
         </div>
-        <span class="place-item-badge" style="background: ${!openStatus.isOpen ? '#475569' : `var(--color-${place.category}, var(--color-primary))`}">
-          ${catName}
-        </span>
       </div>
     `;
   }).join('');
@@ -513,11 +673,13 @@ function renderMapMarkers() {
   const now = new Date();
 
   AppState.filteredPlaces.forEach(place => {
-    const iconClass = AppState.categoryIcons[place.category] || 'ri-map-pin-fill';
+    const seg = place.commercialSegment || 'outro';
+    const iconClass = AppState.segmentIcons[seg] || AppState.categoryIcons[place.category] || 'ri-map-pin-fill';
     const stage = place.crmStage || (place.visited ? 'negotiating' : 'lead');
     const openStatus = getPlaceOpenStatus(place, now);
     const isClosed = !openStatus.isOpen;
     const followUp = getFollowUpStatus(place);
+    const turnoverPinClass = place.isHighTurnover ? 'pin-high-turnover' : '';
     
     // Indicador de estágio no pin
     let stageBadgeHtml = '';
@@ -531,11 +693,11 @@ function renderMapMarkers() {
 
     const followUpBadgeHtml = followUp.isScheduled ? `<span class="pin-followup-badge" title="Retorno Agendado: ${followUp.label}"><i class="ri-calendar-event-fill"></i></span>` : '';
 
-    // Criação do Ícone Customizado HTML
+    // Criação do Ícone Customizado HTML por segmento
     const customIcon = L.divIcon({
-      className: `custom-map-pin pin-${place.category} stage-${stage} ${isClosed ? 'is-closed' : 'is-open'}`,
+      className: `custom-map-pin pin-seg-${seg} ${turnoverPinClass} stage-${stage} ${isClosed ? 'is-closed' : 'is-open'}`,
       html: `
-        <div class="pin-icon-wrap" title="${escapeHtml(place.name)} - ${openStatus.statusText}">
+        <div class="pin-icon-wrap" title="${escapeHtml(place.name)} - ${AppState.segmentNames[seg]} - ${openStatus.statusText}">
           <i class="${iconClass}"></i>
           ${stageBadgeHtml}
           ${followUpBadgeHtml}
@@ -596,9 +758,11 @@ window.selectPlace = function(placeId, zoomIn = false) {
     </div>
     <div class="drawer-body">
       <div class="drawer-meta-top">
-        <span class="drawer-cat-badge" style="background: ${!openStatus.isOpen ? '#475569' : `var(--color-${place.category}, var(--color-primary))`}">
-          ${catName}
+        <span class="drawer-cat-badge" style="background: ${!openStatus.isOpen ? '#475569' : (AppState.segmentColors[place.commercialSegment] || 'var(--color-primary)')}">
+          <i class="${AppState.segmentIcons[place.commercialSegment] || 'ri-store-2-line'}"></i> ${AppState.segmentNames[place.commercialSegment] || catName}
         </span>
+        ${place.isHighTurnover ? '<span class="turnover-badge" style="font-size:0.7rem; padding:2px 8px;"><i class="ri-flashlight-fill"></i> Giro Rápido</span>' : ''}
+        ${place.isChain ? '<span class="chain-badge" style="font-size:0.7rem; padding:2px 8px;"><i class="ri-store-2-line"></i> Grande Rede</span>' : (place.commercialSegment === 'mercado_bairro' ? '<span class="local-independent-badge" style="font-size:0.7rem; padding:2px 8px;"><i class="ri-checkbox-circle-line"></i> Mercado Independente</span>' : '')}
         ${place.rating ? `<span class="drawer-rating"><i class="ri-star-fill"></i> ${place.rating}</span>` : ''}
       </div>
 
@@ -641,6 +805,19 @@ window.selectPlace = function(placeId, zoomIn = false) {
           <div class="info-item">
             <i class="ri-phone-fill"></i>
             <a href="tel:${place.phone.replace(/\s/g, '')}" style="color: inherit; text-decoration: none;">${escapeHtml(place.phone)}</a>
+          </div>
+        ` : ''}
+        ${place.cnpj ? `
+          <div class="info-item" style="background: rgba(56, 189, 248, 0.08); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.2); grid-column: 1 / -1;">
+            <i class="ri-article-line" style="color: #38bdf8; font-size: 1.2rem; align-self: flex-start; margin-top: 2px;"></i>
+            <div style="display: flex; flex-direction: column; gap: 3px; flex: 1;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: #38bdf8; font-weight: 700;">Receita Federal • Novo CNPJ</span>
+                ${place.dataAbertura ? `<span style="font-size: 0.72rem; color: #94a3b8;"><i class="ri-calendar-line"></i> ${escapeHtml(place.dataAbertura)}</span>` : ''}
+              </div>
+              <strong style="color: #f8fafc; font-size: 0.88rem; font-family: monospace;">${escapeHtml(place.cnpj)}</strong>
+              ${place.cnae ? `<span style="font-size: 0.76rem; color: #cbd5e1; line-height: 1.35; margin-top: 2px;"><i class="ri-price-tag-3-line" style="color: #38bdf8; font-size: 0.76rem;"></i> CNAE: ${escapeHtml(place.cnae)}</span>` : ''}
+            </div>
           </div>
         ` : ''}
       </div>
@@ -1274,6 +1451,46 @@ function setupEventListeners() {
     });
   });
 
+  // Foco Comercial: Botão Hero de Giro Rápido
+  const quickProfitBtn = document.getElementById('quickHighTurnoverBtn');
+  if (quickProfitBtn) {
+    quickProfitBtn.addEventListener('click', () => {
+      AppState.commercialSegmentFilter = 'high_turnover';
+      quickProfitBtn.classList.add('active');
+      document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(c => c.classList.remove('active'));
+      updateUI();
+      showToast('⚡ Exibindo todos os alvos de giro rápido e alta lucratividade!');
+    });
+  }
+
+  // Foco Comercial: Chips dos Segmentos
+  document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      const segment = chip.dataset.segment;
+      AppState.commercialSegmentFilter = segment;
+      
+      if (quickProfitBtn) {
+        quickProfitBtn.classList.toggle('active', segment === 'high_turnover');
+      }
+
+      updateUI();
+      const segName = AppState.segmentNames[segment] || 'Todos os estabelecimentos';
+      showToast(`Filtrado por: ${segName}`);
+    });
+  });
+
+  // Foco Comercial: Toggle Ocultar Grandes Redes
+  const hideChainsCb = document.getElementById('hideChainsCheckbox');
+  if (hideChainsCb) {
+    hideChainsCb.addEventListener('change', () => {
+      AppState.hideChains = hideChainsCb.checked;
+      updateUI();
+      showToast(AppState.hideChains ? 'Grandes redes corporativas ocultadas!' : 'Grandes redes visíveis no mapa.');
+    });
+  }
+
   // Pills de Filtro por Raio de Distância (GPS)
   document.querySelectorAll('#radiusPills .radius-pill').forEach(pill => {
     pill.addEventListener('click', () => {
@@ -1581,6 +1798,85 @@ function setupEventListeners() {
       updateUI();
       showToast('Dados restaurados com sucesso!');
     }
+  });
+}
+
+// --- SUPORTE COMPLETO A ROLAGEM HORIZONTAL (MOUSE WHEEL, DRAG & TOUCH) ---
+function setupHorizontalScrollHelpers() {
+  const horizontalSelectors = [
+    '#crmStatusTabs',
+    '#commercialSegmentChips',
+    '#radiusPills',
+    '.commercial-chips',
+    '.radius-pills',
+    '.crm-tabs',
+    '.category-multiselect-menu .multiselect-options'
+  ];
+
+  horizontalSelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(container => {
+      if (!container || container.dataset.dragScrollInit) return;
+      container.dataset.dragScrollInit = 'true';
+      container.classList.add('can-drag-scroll');
+
+      // 1. Mouse Wheel no PC: rola horizontalmente se houver overflow
+      container.addEventListener('wheel', (e) => {
+        if (container.scrollWidth > container.clientWidth) {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            e.preventDefault();
+            container.scrollBy({
+              left: e.deltaY * 1.2,
+              behavior: 'smooth'
+            });
+          }
+        }
+      }, { passive: false });
+
+      // 2. Click & Drag no PC (Arrastar com o mouse)
+      let isDown = false;
+      let startX = 0;
+      let scrollLeft = 0;
+      let hasDragged = false;
+
+      container.addEventListener('mousedown', (e) => {
+        if (container.scrollWidth <= container.clientWidth) return;
+        isDown = true;
+        hasDragged = false;
+        container.classList.add('is-dragging');
+        startX = e.pageX - container.offsetLeft;
+        scrollLeft = container.scrollLeft;
+      });
+
+      const stopDrag = () => {
+        if (isDown) {
+          isDown = false;
+          container.classList.remove('is-dragging');
+        }
+      };
+
+      window.addEventListener('mouseup', stopDrag);
+      container.addEventListener('mouseleave', stopDrag);
+
+      container.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - container.offsetLeft;
+        const walk = (x - startX) * 1.5;
+        if (Math.abs(walk) > 5) {
+          hasDragged = true;
+        }
+        container.scrollLeft = scrollLeft - walk;
+      });
+
+      // Suprimir clique nos botões caso tenha ocorrido arraste
+      container.addEventListener('click', (e) => {
+        if (hasDragged) {
+          e.preventDefault();
+          e.stopPropagation();
+          hasDragged = false;
+        }
+      }, true);
+    });
   });
 }
 

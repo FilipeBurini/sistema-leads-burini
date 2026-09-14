@@ -5,3 +5,4 @@ sync-data.js
 .DS_Store
 Thumbs.db
 *.tmp
+~$*

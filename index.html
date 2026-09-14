@@ -94,6 +94,79 @@
         </div>
       </div>
 
+      <!-- SEÇÃO FOCO COMERCIAL: ALTA LUCRATIVIDADE & GIRO RÁPIDO -->
+      <div class="profit-filter-section">
+        <div class="profit-filter-header">
+          <div class="profit-title">
+            <i class="ri-flashlight-fill" style="color: #f59e0b;"></i>
+            <span>Foco Comercial</span>
+          </div>
+          <label class="chain-toggle-label" title="Ocultar grandes redes de supermercados (Savegnago, Tonin, etc.) para focar apenas em comércios locais independentes">
+            <input type="checkbox" id="hideChainsCheckbox" checked>
+            <span class="chain-toggle-custom"></span>
+            <span>Sem Redes</span>
+          </label>
+        </div>
+
+        <!-- BOTÃO HERO DE ATIVAÇÃO RÁPIDA: TODOS OS ALVOS DE GIRO RÁPIDO -->
+        <button class="hero-profit-btn active" id="quickHighTurnoverBtn" title="Ativar todos os comércios de giro rápido (Bares, Adegas, Restaurantes, Padarias e Mercados Locais)">
+          <div class="hero-profit-left">
+            <div class="hero-profit-icon">
+              <i class="ri-flashlight-fill"></i>
+            </div>
+            <div class="hero-profit-text">
+              <strong>⚡ Giro Rápido (Todos os Alvos)</strong>
+              <span>Bares, Adegas, Restaurantes, Padarias e Mercados</span>
+            </div>
+          </div>
+          <b class="hero-profit-count" id="count-high-turnover">0</b>
+        </button>
+
+        <!-- CHIPS DOS SEGMENTOS PRIORITÁRIOS -->
+        <div class="commercial-chips" id="commercialSegmentChips">
+          <button class="commercial-chip" data-segment="all" title="Mostrar todos os estabelecimentos sem filtro de segmento">
+            <i class="ri-apps-line"></i>
+            <span>Todos</span>
+            <b id="chip-count-all">0</b>
+          </button>
+          <button class="commercial-chip chip-cnpj" data-segment="novo_cnpj" title="Mostrar apenas os 1.304 Novos CNPJs abertos recentemente em Franca">
+            <i class="ri-file-text-line" style="color: #38bdf8;"></i>
+            <span>Novos CNPJs</span>
+            <b id="chip-count-novo_cnpj" style="background: rgba(56,189,248,0.2); color: #38bdf8;">0</b>
+          </button>
+          <button class="commercial-chip chip-adega" data-segment="adega" title="Adegas e Distribuidoras de Bebidas">
+            <i class="ri-goblet-fill"></i>
+            <span>Adegas</span>
+            <b id="chip-count-adega">0</b>
+          </button>
+          <button class="commercial-chip chip-bar" data-segment="bar" title="Bares, Pubs, Choperias e Botecos">
+            <i class="ri-beer-fill"></i>
+            <span>Bares</span>
+            <b id="chip-count-bar">0</b>
+          </button>
+          <button class="commercial-chip chip-restaurante" data-segment="restaurante" title="Restaurantes, Pizzarias, Lanchonetes e Marmitarias">
+            <i class="ri-restaurant-2-fill"></i>
+            <span>Restaurantes</span>
+            <b id="chip-count-restaurante">0</b>
+          </button>
+          <button class="commercial-chip chip-padaria" data-segment="padaria" title="Padarias, Confeitarias e Cafeterias">
+            <i class="ri-cake-3-fill"></i>
+            <span>Padarias</span>
+            <b id="chip-count-padaria">0</b>
+          </button>
+          <button class="commercial-chip chip-mercado" data-segment="mercado_bairro" title="Mercados de Bairro, Mercearias, Hortifrutis e Mini-Boxes (Sem Redes)">
+            <i class="ri-shopping-cart-2-fill"></i>
+            <span>Mercados Bairro</span>
+            <b id="chip-count-mercado_bairro">0</b>
+          </button>
+          <button class="commercial-chip chip-outro" data-segment="outro" title="Outros estabelecimentos (Lojas, Serviços e Redes)">
+            <i class="ri-more-fill"></i>
+            <span>Outros</span>
+            <b id="chip-count-outro">0</b>
+          </button>
+        </div>
+      </div>
+
       <!-- FILTRO POR RAIO DE DISTÂNCIA (GPS EM TEMPO REAL) -->
       <div class="radius-filter-row">
         <div class="radius-filter-header">
@@ -539,6 +612,9 @@
   <!-- Leaflet JS & Plugins -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <!-- Base de Dados Padrão (Compatível com file:// e localhost sem bloqueio CORS) -->
+  <script src="data/default-places.js"></script>
 
   <!-- App Core JS -->
   <script src="app.js"></script>
