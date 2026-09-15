@@ -221,10 +221,6 @@
         }
       }
 
-      // Preencher inputs de configuração
-      if (cfgUrlInput) cfgUrlInput.value = localStorage.getItem('citymap_supabase_url') || window.SUPABASE_CONFIG?.url || '';
-      if (cfgKeyInput) cfgKeyInput.value = localStorage.getItem('citymap_supabase_key') || window.SUPABASE_CONFIG?.anonKey || '';
-
       // Funções de Alerta
       function showAlert(msg, type = 'error') {
         authAlert.className = `alert-feedback ${type}`;
@@ -351,8 +347,7 @@
 
         // Verifica se Supabase está configurado
         if (!CloudSync.isConfigured || !CloudSync.client) {
-          showAlert('A nuvem ainda não está configurada. Clique na engrenagem no topo direito para inserir sua URL e Anon Key do Supabase.', 'error');
-          openConfigModal();
+          showAlert('A nuvem Supabase ainda não está configurada. Insira sua URL e Anon Key no arquivo supabase-config.js.', 'error');
           return;
         }
 
@@ -417,7 +412,7 @@
           console.error('Erro na autenticação:', err);
           let msg = err.message || 'Falha ao autenticar.';
           if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('TypeError')) {
-            msg = 'Não foi possível conectar ao Supabase (Failed to fetch). Verifique se a URL do projeto (https://...supabase.co) e a Anon Key estão corretas na engrenagem.';
+            msg = 'Não foi possível conectar ao Supabase (Failed to fetch). Verifique sua conexão ou as credenciais em supabase-config.js.';
           } else if (msg.includes('Invalid login credentials')) {
             msg = 'E-mail ou senha incorretos.';
           } else if (msg.includes('Email not confirmed')) {
