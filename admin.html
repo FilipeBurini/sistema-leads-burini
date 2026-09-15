@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel Administrador Master - CityMap Hub</title>
+  <meta name="description" content="Centro de inteligência e controle administrativo master da base de leads comerciais.">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z'/></svg>">
+
+  <!-- Remix Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+  <!-- Estilos dedicados do Admin -->
+  <link rel="stylesheet" href="admin.css">
+
+  <!-- Auth Guard Rápido no Head -->
+  <script>
+    (function() {
+      let hasToken = false;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          const val = localStorage.getItem(key);
+          if (val && val.includes('"access_token"')) {
+            hasToken = true;
+            break;
+          }
+        }
+      }
+      if (!hasToken) {
+        window.location.href = 'login.html';
+      }
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- Ambient Glow Effects -->
+  <div class="ambient-bg">
+    <div class="ambient-circle-1"></div>
+    <div class="ambient-circle-2"></div>
+  </div>
+
+  <!-- Navbar Superior -->
+  <header class="admin-navbar">
+    <div class="nav-brand-wrap">
+      <div class="nav-logo-icon">
+        <i class="ri-dashboard-3-line"></i>
+      </div>
+      <div class="nav-title-group">
+        <h1>Painel do Administrador <span class="admin-badge-gold">MASTER 👑</span></h1>
+        <span class="nav-subtitle" id="cloudSyncStatusText">Verificando conexão com a nuvem...</span>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <div class="user-tag">
+        <i class="ri-shield-user-fill"></i>
+        <span id="navUserEmail">filipe.piani@gmail.com</span>
+      </div>
+      <a href="index.html" class="btn-nav-action primary">
+        <i class="ri-map-2-line"></i> Abrir Mapa Interativo
+      </a>
+      <button type="button" class="btn-nav-action" id="adminLogoutBtn" title="Sair da Conta">
+        <i class="ri-logout-box-r-line"></i> Sair
+      </button>
+    </div>
+  </header>
+
+  <!-- Container Principal do Dashboard -->
+  <main class="admin-container">
+    
+    <!-- Cabeçalho com Título e Ações Rápidas -->
+    <section class="dashboard-header">
+      <div class="dashboard-heading-group">
+        <h2>Visão Executiva & Métricas Comerciais</h2>
+        <p>Monitoramento estratégico de 2.059 estabelecimentos, funil de vendas e mercado de maquininhas em Franca-SP</p>
+      </div>
+
+      <div class="header-quick-tools">
+        <button type="button" class="btn-nav-action" id="btnAdminExportCsv">
+          <i class="ri-file-excel-2-line" style="color: #10b981;"></i> Exportar Excel (CSV)
+        </button>
+        <button type="button" class="btn-nav-action" id="btnAdminExportJson">
+          <i class="ri-download-2-line"></i> Backup JSON
+        </button>
+      </div>
+    </section>
+
+    <!-- Grid de Métricas Principais (KPIs) -->
+    <section class="kpi-grid">
+      
+      <!-- KPI 1: Base Total -->
+      <div class="kpi-card kpi-total">
+        <div class="kpi-info">
+          <span class="kpi-label">Base Mapeada</span>
+          <span class="kpi-value" id="kpiTotalLeads">2.059</span>
+          <span class="kpi-subtitle" id="kpiSubTotalText">Empresas em Franca-SP</span>
+        </div>
+        <div class="kpi-icon-wrap">
+          <i class="ri-store-2-line"></i>
+        </div>
+      </div>
+
+      <!-- KPI 2: A Visitar -->
+      <div class="kpi-card kpi-lead">
+        <div class="kpi-info">
+          <span class="kpi-label">Leads a Visitar</span>
+          <span class="kpi-value" id="kpiPendingLeads">0</span>
+          <span class="kpi-subtitle">Oportunidades em aberto</span>
+        </div>
+        <div class="kpi-icon-wrap">
+          <i class="ri-compass-3-line"></i>
+        </div>
+      </div>
+
+      <!-- KPI 3: Em Negociação -->
+      <div class="kpi-card kpi-negotiating">
+        <div class="kpi-info">
+          <span class="kpi-label">Em Negociação</span>
+          <span class="kpi-value" id="kpiNegotiatingLeads">0</span>
+          <span class="kpi-subtitle">Visitas em andamento</span>
+        </div>
+        <div class="kpi-icon-wrap">
+          <i class="ri-time-line"></i>
+        </div>
+      </div>
+
+      <!-- KPI 4: Fechados / Ganho -->
+      <div class="kpi-card kpi-closed">
+        <div class="kpi-info">
+          <span class="kpi-label">Fechados / Ganhos</span>
+          <span class="kpi-value" id="kpiClosedLeads">0</span>
+          <span class="kpi-subtitle" id="kpiConversionRate">0% de conversão</span>
+        </div>
+        <div class="kpi-icon-wrap">
+          <i class="ri-checkbox-circle-line"></i>
+        </div>
+      </div>
+
+      <!-- KPI 5: Retornos (Follow-ups) -->
+      <div class="kpi-card kpi-followup">
+        <div class="kpi-info">
+          <span class="kpi-label">Retornos Hoje / Pendentes</span>
+          <span class="kpi-value" id="kpiFollowUpsDue">0</span>
+          <span class="kpi-subtitle">Follow-ups prioritários</span>
+        </div>
+        <div class="kpi-icon-wrap">
+          <i class="ri-notification-3-line"></i>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Linha 2: Inteligência de Mercado (Maquininhas & Segmentos) -->
+    <section class="dashboard-grid-dual">
+      
+      <!-- Card: Participação de Maquininhas Concorrentes -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <h3 class="panel-title">
+            <i class="ri-bank-card-line"></i> Maquininhas Concorrentes Mapeadas
+          </h3>
+          <span class="panel-badge">Market Share</span>
+        </div>
+        <div class="market-share-list" id="marketShareList">
+          <div style="color: #94a3b8; font-size: 0.85rem;">Calculando dados de maquininhas...</div>
+        </div>
+      </div>
+
+      <!-- Card: Distribuição por Segmento Comercial -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <h3 class="panel-title">
+            <i class="ri-pie-chart-2-line"></i> Distribuição por Segmento Comercial
+          </h3>
+          <span class="panel-badge">Segmentação</span>
+        </div>
+        <div class="market-share-list" id="commercialSegmentsList">
+          <div style="color: #94a3b8; font-size: 0.85rem;">Calculando segmentos comerciais...</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Linha 3: Auditoria da Equipe ao Vivo & Ferramentas Master -->
+    <section class="dashboard-grid-dual">
+      
+      <!-- Card: Feed de Atividades da Equipe (Auditoria) -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <h3 class="panel-title">
+            <i class="ri-pulse-line"></i> Atividades Recentes da Equipe
+          </h3>
+          <span class="panel-badge">Supabase Realtime</span>
+        </div>
+        <div class="audit-feed-list" id="auditFeedList">
+          <div style="color: #94a3b8; font-size: 0.85rem;">Buscando histórico de interações...</div>
+        </div>
+      </div>
+
+      <!-- Card: Ferramentas de Gestão Master da Nuvem -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <h3 class="panel-title">
+            <i class="ri-tools-line"></i> Centro de Comando Master
+          </h3>
+          <span class="panel-badge">Ações Globais</span>
+        </div>
+
+        <div class="master-tools-grid">
+          
+          <div class="master-action-box">
+            <div class="master-action-top">
+              <div class="master-action-icon">
+                <i class="ri-upload-cloud-2-line"></i>
+              </div>
+              <div class="master-action-text">
+                <h4>Sincronização em Massa</h4>
+                <p>Envia e atualiza todos os 2.059 estabelecimentos para o PostgreSQL na nuvem.</p>
+              </div>
+            </div>
+            <button type="button" class="btn-master-action" id="btnAdminSyncAll">
+              <i class="ri-cloud-upload-line"></i> Subir Base para Nuvem
+            </button>
+          </div>
+
+          <div class="master-action-box">
+            <div class="master-action-top">
+              <div class="master-action-icon" style="color: #38bdf8; background: rgba(56, 189, 248, 0.12);">
+                <i class="ri-settings-4-line"></i>
+              </div>
+              <div class="master-action-text">
+                <h4>Credenciais Supabase</h4>
+                <p>Revise ou atualize a URL da API e a Anon Key do projeto em nuvem.</p>
+              </div>
+            </div>
+            <a href="login.html" class="btn-master-action" style="text-decoration: none;">
+              <i class="ri-key-2-line"></i> Gerenciar Chaves
+            </a>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Linha 4: Tabela de Leads com Busca Instantânea -->
+    <section class="panel-card">
+      <div class="panel-header">
+        <h3 class="panel-title">
+          <i class="ri-list-check-2"></i> Base de Estabelecimentos (Amostra Rápida)
+        </h3>
+        <div style="max-width: 320px; width: 100%;">
+          <input 
+            type="text" 
+            id="adminLeadSearch" 
+            placeholder="🔍 Buscar por nome, CNPJ ou rua..."
+            style="width:100%; background:rgba(255,255,255,0.04); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:0.45rem 0.85rem; color:#fff; font-size:0.8rem; outline:none;"
+          >
+        </div>
+      </div>
+
+      <div class="leads-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Razão Social / Nome</th>
+              <th>CNPJ</th>
+              <th>Segmento</th>
+              <th>Maquininha</th>
+              <th>Estágio CRM</th>
+              <th>Contato</th>
+            </tr>
+          </thead>
+          <tbody id="recentLeadsTableBody">
+            <tr>
+              <td colspan="6" style="text-align: center; color: #94a3b8; padding: 2rem;">Carregando estabelecimentos...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Scripts Base -->
+  <script src="data/default-places.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="supabase-client.js"></script>
+  <script src="admin.js"></script>
+
+</body>
+</html>

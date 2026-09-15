@@ -2646,12 +2646,22 @@ function setupCloudSyncIntegration() {
       }
       if (openCloudConfigBtn) openCloudConfigBtn.style.display = isAdmin ? 'flex' : 'none';
       if (syncToCloudBtn) syncToCloudBtn.style.display = isAdmin ? 'flex' : 'none';
+
+      const headerAdminPanelBtn = document.getElementById('headerAdminPanelBtn');
+      const navAdminPanelBtn = document.getElementById('navAdminPanelBtn');
+      if (headerAdminPanelBtn) headerAdminPanelBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+      if (navAdminPanelBtn) navAdminPanelBtn.style.display = isAdmin ? 'flex' : 'none';
     } else {
       if (cloudStatusDot) { cloudStatusDot.className = 'cloud-dot ready'; }
       if (cloudStatusText) { cloudStatusText.textContent = 'Nuvem Pronta (Faça Login)'; }
       if (cloudActionBtn) { cloudActionBtn.textContent = 'Entrar'; cloudActionBtn.style.display = 'inline-block'; }
       if (userAuthText) { userAuthText.textContent = 'Entrar'; }
       if (userAuthBtn) { userAuthBtn.title = 'Entrar / Criar Conta'; }
+
+      const headerAdminPanelBtn = document.getElementById('headerAdminPanelBtn');
+      const navAdminPanelBtn = document.getElementById('navAdminPanelBtn');
+      if (headerAdminPanelBtn) headerAdminPanelBtn.style.display = 'none';
+      if (navAdminPanelBtn) navAdminPanelBtn.style.display = 'none';
     }
   }
 

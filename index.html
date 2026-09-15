@@ -60,6 +60,12 @@
           </div>
         </div>
         <div class="sidebar-header-actions">
+          <!-- Atalho Rápido para Painel Admin Master (Visível apenas para Admin) -->
+          <a href="admin.html" id="headerAdminPanelBtn" class="admin-header-badge-btn" style="display: none;" title="Acessar Painel do Administrador Master">
+            <i class="ri-shield-star-fill"></i>
+            <span>Admin</span>
+          </a>
+
           <div class="user-auth-wrapper">
             <button id="userAuthBtn" class="auth-btn" title="Entrar / Conectar na Nuvem">
               <i class="ri-user-3-line"></i>
@@ -74,6 +80,10 @@
                 </div>
               </div>
               <div class="user-profile-menu">
+                <a href="admin.html" id="navAdminPanelBtn" class="user-profile-admin-link" style="display: none;">
+                  <i class="ri-dashboard-3-fill" style="color: #fbbf24;"></i>
+                  <span style="color: #fbbf24; font-weight: 700;">👑 Painel Admin Master</span>
+                </a>
                 <button type="button" id="syncToCloudBtn">
                   <i class="ri-upload-cloud-2-line"></i> Subir Base para Nuvem
                 </button>

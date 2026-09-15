@@ -3002,3 +3002,46 @@ body {
 .btn-block {
   width: 100%;
 }
+
+/* Link & Botão de Acesso ao Painel Admin Master */
+.admin-header-badge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.35));
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fbbf24;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.admin-header-badge-btn:hover {
+  background: #f59e0b;
+  color: #09090b;
+  transform: translateY(-1px);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.4);
+}
+
+.user-profile-admin-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  margin-bottom: 0.35rem;
+  transition: var(--transition);
+}
+
+.user-profile-admin-link:hover {
+  background: rgba(245, 158, 11, 0.2);
+  transform: translateX(2px);
+}
