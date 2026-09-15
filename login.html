@@ -23,11 +23,6 @@
     <div class="glow-circle-2"></div>
   </div>
 
-  <!-- Botão sutil para configurar chaves da nuvem se necessário -->
-  <button type="button" class="top-config-btn" id="openConfigModalBtn" title="Configurar Conexão da Nuvem (Supabase)">
-    <i class="ri-settings-4-line"></i>
-  </button>
-
   <!-- Card Principal Centralizado -->
   <div class="login-wrapper">
     <div class="login-card">
@@ -158,38 +153,6 @@
     </div>
   </div>
 
-  <!-- Modal de Configuração do Supabase (Acessível via botão de engrenagem) -->
-  <div class="config-modal-backdrop" id="configModal">
-    <div class="config-modal-box">
-      <div class="config-modal-header">
-        <h3 class="config-modal-title">
-          <i class="ri-cloud-line" style="color: #f59e0b;"></i> Conexão com a Nuvem
-        </h3>
-        <button type="button" class="config-close-btn" id="closeConfigModalBtn">
-          <i class="ri-close-line"></i>
-        </button>
-      </div>
-      <p style="font-size: 0.82rem; color: #94a3b8; line-height: 1.45; margin-bottom: 1rem;">
-        Insira a <strong>Project URL</strong> e a <strong>Anon Key</strong> do seu projeto gratuito no Supabase para habilitar autenticação em nuvem e sincronização em tempo real:
-      </p>
-      
-      <div class="form-group" style="margin-bottom: 0.85rem;">
-        <label class="form-label" for="cfgUrlInput">Supabase Project URL</label>
-        <input type="text" id="cfgUrlInput" class="input-field" placeholder="https://xyzcompany.supabase.co" style="padding-left: 1rem;">
-      </div>
-
-      <div class="form-group" style="margin-bottom: 1.25rem;">
-        <label class="form-label" for="cfgKeyInput">Supabase Anon Key (Public)</label>
-        <textarea id="cfgKeyInput" class="config-textarea" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
-      </div>
-
-      <button type="button" class="btn-gold-submit" id="saveConfigBtn">
-        <span>Salvar e Conectar Nuvem</span>
-        <i class="ri-checkbox-circle-line btn-arrow"></i>
-      </button>
-    </div>
-  </div>
-
   <!-- Supabase Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
@@ -227,14 +190,6 @@
       const toggleConfirmPasswordBtn = document.getElementById('toggleConfirmPasswordBtn');
       const eyeConfirmIcon = document.getElementById('eyeConfirmIcon');
       const forgotPasswordBtn = document.getElementById('forgotPasswordBtn');
-
-      // Modal Config
-      const openConfigModalBtn = document.getElementById('openConfigModalBtn');
-      const closeConfigModalBtn = document.getElementById('closeConfigModalBtn');
-      const configModal = document.getElementById('configModal');
-      const cfgUrlInput = document.getElementById('cfgUrlInput');
-      const cfgKeyInput = document.getElementById('cfgKeyInput');
-      const saveConfigBtn = document.getElementById('saveConfigBtn');
 
       // Inicializa Supabase
       CloudSync.init();
@@ -477,60 +432,6 @@
           submitBtnText.textContent = isRegisterMode ? 'Create Account' : 'Sign In';
         }
       });
-
-      // Funções do Modal de Configuração
-      function openConfigModal() {
-        if (configModal) configModal.classList.add('open');
-      }
-
-      function closeConfigModal() {
-        if (configModal) configModal.classList.remove('open');
-      }
-
-      if (openConfigModalBtn) openConfigModalBtn.addEventListener('click', openConfigModal);
-      if (closeConfigModalBtn) closeConfigModalBtn.addEventListener('click', closeConfigModal);
-
-      if (configModal) {
-        configModal.addEventListener('click', (e) => {
-          if (e.target === configModal) closeConfigModal();
-        });
-      }
-
-      if (saveConfigBtn) {
-        saveConfigBtn.addEventListener('click', () => {
-          let url = cfgUrlInput.value.trim().replace(/\/+$/, '');
-          const key = cfgKeyInput.value.trim();
-
-          if (!url || !key) {
-            alert('Preencha a URL e a Anon Key do Supabase.');
-            return;
-          }
-
-          if (url.includes('supabase.com/dashboard/project')) {
-            alert('Atenção: Você colou o link do painel de controle do Supabase!\n\nA URL correta fica em: Project Settings ⚙️ -> API -> Project URL\nEla termina sempre com .supabase.co (ex: https://abcdef.supabase.co)');
-            return;
-          }
-
-          if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            alert('A URL do Supabase deve começar com https:// (ex: https://abcdef.supabase.co)');
-            return;
-          }
-
-          localStorage.setItem('citymap_supabase_url', url);
-          localStorage.setItem('citymap_supabase_key', key);
-          window.SUPABASE_CONFIG = window.SUPABASE_CONFIG || {};
-          window.SUPABASE_CONFIG.url = url;
-          window.SUPABASE_CONFIG.anonKey = key;
-
-          const ok = CloudSync.init();
-          if (ok) {
-            closeConfigModal();
-            showAlert('Nuvem conectada com sucesso! Agora você pode criar sua conta ou entrar.', 'success');
-          } else {
-            alert('Não foi possível conectar ao Supabase com as credenciais informadas. Verifique a URL e a Chave.');
-          }
-        });
-      }
 
     });
   </script>

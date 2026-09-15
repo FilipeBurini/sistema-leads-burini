@@ -71,34 +71,6 @@ body {
   filter: blur(90px);
 }
 
-/* --- BOTÃO DE CONFIGURAÇÃO DE NUVEM DISCRETO NO TOPO --- */
-.top-config-btn {
-  position: fixed;
-  top: 1.25rem;
-  right: 1.25rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-muted);
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition: var(--transition);
-  z-index: 50;
-  backdrop-filter: blur(10px);
-}
-
-.top-config-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--primary-gold-1);
-  border-color: rgba(245, 158, 11, 0.3);
-  transform: rotate(30deg);
-}
-
 /* --- CONTAINER PRINCIPAL DO LOGIN (V7 CARD) --- */
 .login-wrapper {
   position: relative;
@@ -436,90 +408,6 @@ body {
 
 .toggle-mode-btn:hover {
   color: var(--primary-gold-1);
-}
-
-/* --- MODAL DE CONFIGURAÇÃO DE SUPABASE --- */
-.config-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  opacity: 0;
-  pointer-events: none;
-  transition: var(--transition);
-  padding: 1rem;
-}
-
-.config-modal-backdrop.open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.config-modal-box {
-  background: #111115;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: 20px;
-  width: 100%;
-  max-width: 480px;
-  padding: 2rem;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(245, 158, 11, 0.15);
-  transform: scale(0.95);
-  transition: var(--transition);
-}
-
-.config-modal-backdrop.open .config-modal-box {
-  transform: scale(1);
-}
-
-.config-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
-.config-modal-title {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.config-close-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.25rem;
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.config-close-btn:hover {
-  color: #ffffff;
-}
-
-.config-textarea {
-  width: 100%;
-  background: var(--input-bg);
-  border: 1px solid var(--input-border);
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
-  font-family: inherit;
-  font-size: 0.8rem;
-  color: #ffffff;
-  outline: none;
-  resize: vertical;
-  min-height: 80px;
-}
-
-.config-textarea:focus {
-  border-color: var(--primary-gold-2);
 }
 
 /* SPINNER ANIMAÇÃO */
