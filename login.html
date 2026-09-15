@@ -239,16 +239,27 @@
       // Inicializa Supabase
       CloudSync.init();
 
-      // Se o usuário já estiver logado, redireciona diretamente para o mapa
+      // Se o usuário já estiver logado, verifica aprovação antes de ir para o mapa
       if (CloudSync.client) {
         try {
           const { data } = await CloudSync.client.auth.getSession();
-          if (data && data.session && data.session.user) {
-            showAlert('Sessão ativa detectada! Redirecionando para o mapa...', 'success');
-            setTimeout(() => {
-              window.location.href = 'index.html';
-            }, 600);
-            return;
+          const sessionUser = data?.session?.user;
+          if (sessionUser) {
+            const approval = await CloudSync.checkUserApproval(sessionUser);
+            if (approval.isApproved) {
+              showAlert('Sessão ativa detectada! Redirecionando para o mapa...', 'success');
+              setTimeout(() => {
+                window.location.href = 'index.html';
+              }, 500);
+              return;
+            } else {
+              await CloudSync.logout();
+              if (approval.status === 'rejected') {
+                showAlert('❌ Seu acesso ao sistema foi recusado pelo Administrador.', 'error');
+              } else {
+                showAlert('⏳ Sua conta está em análise e aguarda liberação do Administrador Master.', 'info');
+              }
+            }
           }
         } catch (e) {
           console.warn('Erro ao verificar sessão existente:', e);
@@ -399,21 +410,49 @@
           if (isRegisterMode) {
             // Cadastro
             const res = await CloudSync.register(email, password);
-            if (res.session) {
-              showAlert('Conta criada com sucesso! Redirecionando para o mapa...', 'success');
-              setTimeout(() => {
-                window.location.href = 'index.html';
-              }, 1000);
+            const registeredUser = res.user || res.session?.user;
+            const fullName = fullNameInput ? fullNameInput.value.trim() : '';
+
+            if (registeredUser) {
+              await CloudSync.registerUserInSystem(registeredUser, fullName);
+              const isAdmin = CloudSync.isAdmin(registeredUser);
+
+              if (isAdmin) {
+                showAlert('👑 Conta Administrador Master criada com sucesso! Redirecionando...', 'success');
+                setTimeout(() => {
+                  window.location.href = 'index.html';
+                }, 900);
+              } else {
+                // Usuário comum fica pendente de aprovação
+                await CloudSync.logout();
+                showAlert('⏳ Conta criada com sucesso! Seu acesso está em análise e precisa ser aprovado pelo Administrador no painel antes de você entrar.', 'info');
+                setTimeout(() => {
+                  toggleModeBtn.click();
+                }, 3500);
+              }
             } else {
-              showAlert('Cadastro realizado! Se o Supabase exigir confirmação por e-mail, verifique sua caixa de entrada.', 'success');
-              // Alterna para o modo de login
+              showAlert('Cadastro realizado! Verifique sua caixa de entrada para confirmar o e-mail se necessário.', 'success');
               setTimeout(() => {
                 toggleModeBtn.click();
               }, 2500);
             }
           } else {
             // Login
-            await CloudSync.login(email, password);
+            const res = await CloudSync.login(email, password);
+            const user = res.user;
+
+            // Checar aprovação
+            const approval = await CloudSync.checkUserApproval(user);
+            if (!approval.isApproved) {
+              await CloudSync.logout();
+              if (approval.status === 'rejected') {
+                showAlert('❌ Seu acesso foi recusado pelo Administrador.', 'error');
+              } else {
+                showAlert('⏳ Sua conta está cadastrada, mas aguarda aprovação do Administrador Master para liberação.', 'info');
+              }
+              return;
+            }
+
             showAlert('Login realizado com sucesso! Carregando mapa...', 'success');
             setTimeout(() => {
               window.location.href = 'index.html';

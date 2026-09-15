@@ -628,3 +628,99 @@ body {
   padding: 2rem;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
 }
+
+/* BADGES E BOTÕES DE GESTÃO DE USUÁRIOS */
+.user-stats-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-badge {
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+
+.user-badge.pending {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.user-badge.pending.has-pending {
+  animation: pulse 1.5s infinite;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.user-badge.approved {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.status-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.status-pill.status-pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-pill.status-approved {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-pill.status-rejected {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fda4af;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.btn-action-user {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: #ffffff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: var(--transition);
+}
+
+.btn-action-user.btn-approve {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.btn-action-user.btn-approve:hover {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.btn-action-user.btn-reject {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: #f43f5e;
+  color: #fda4af;
+}
+
+.btn-action-user.btn-reject:hover {
+  background: #f43f5e;
+  color: #ffffff;
+}

@@ -24,11 +24,13 @@ const AdminApp = {
     this.renderCommercialSegments();
     this.renderRecentLeadsTable();
 
-    // 5. Carregar Feed de Auditoria do Supabase
+    // 5. Carregar Gestão de Usuários e Feed de Auditoria
+    await this.loadSystemUsers();
     await this.loadAuditFeed();
 
     // 6. Configurar Event Listeners das Ferramentas Master
     this.setupEventListeners();
+    this.setupRealtimeSync();
   },
 
   async verifyAdminAccess() {
@@ -279,6 +281,146 @@ const AdminApp = {
         <td>${p.phone || p.whatsapp || '<span style="color:#64748b;">—</span>'}</td>
       </tr>
     `).join('');
+  },
+
+  // --- GESTÃO DE USUÁRIOS E APROVAÇÕES ---
+
+  async loadSystemUsers() {
+    const tbody = document.getElementById('systemUsersTableBody');
+    if (!tbody) return;
+
+    if (!CloudSync.isConfigured || !CloudSync.client) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:1.5rem;">Nuvem não conectada. Conecte ao Supabase para gerenciar aprovações de equipe.</td></tr>`;
+      return;
+    }
+
+    try {
+      this.systemUsers = await CloudSync.fetchSystemUsers();
+      this.renderSystemUsersTable();
+    } catch (e) {
+      console.warn('Erro ao carregar usuários:', e);
+    }
+  },
+
+  renderSystemUsersTable() {
+    const tbody = document.getElementById('systemUsersTableBody');
+    if (!tbody) return;
+
+    let pendingCount = 0;
+    let approvedCount = 0;
+
+    (this.systemUsers || []).forEach(u => {
+      if (u.status === 'pending') pendingCount++;
+      else if (u.status === 'approved') approvedCount++;
+    });
+
+    const pendingBadge = document.getElementById('badgePendingUsersCount');
+    if (pendingBadge) {
+      pendingBadge.textContent = `⏳ ${pendingCount} ${pendingCount === 1 ? 'Pendente' : 'Pendentes'}`;
+      if (pendingCount > 0) {
+        pendingBadge.classList.add('has-pending');
+      } else {
+        pendingBadge.classList.remove('has-pending');
+      }
+    }
+
+    const approvedBadge = document.getElementById('badgeApprovedUsersCount');
+    if (approvedBadge) {
+      approvedBadge.textContent = `✅ ${approvedCount} ${approvedCount === 1 ? 'Aprovado' : 'Aprovados'}`;
+    }
+
+    if (!this.systemUsers || this.systemUsers.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:1.5rem;">Nenhum usuário registrado além do Administrador Master. Novos cadastros aparecerão aqui automaticamente!</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = this.systemUsers.map(u => {
+      const isMasterAdmin = (window.SUPABASE_CONFIG?.adminEmails || []).includes(u.email) || u.role === 'admin';
+      const createdDate = u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '—';
+      const name = u.full_name || 'Sem nome informado';
+
+      let statusBadge = '';
+      let actionButtons = '';
+
+      if (isMasterAdmin) {
+        statusBadge = `<span class="status-pill status-approved">👑 Master</span>`;
+        actionButtons = `<span style="font-size:0.75rem; color:#fbbf24; font-weight:700;">Administrador Master</span>`;
+      } else if (u.status === 'pending') {
+        statusBadge = `<span class="status-pill status-pending">⏳ Aguardando</span>`;
+        actionButtons = `
+          <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'approved', '${u.email}')">
+            <i class="ri-check-line"></i> Aprovar
+          </button>
+          <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'rejected', '${u.email}')">
+            <i class="ri-close-line"></i> Recusar
+          </button>
+        `;
+      } else if (u.status === 'approved') {
+        statusBadge = `<span class="status-pill status-approved">✅ Liberado</span>`;
+        actionButtons = `
+          <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'rejected', '${u.email}')" title="Bloquear acesso deste usuário">
+            <i class="ri-forbid-2-line"></i> Bloquear Acesso
+          </button>
+        `;
+      } else if (u.status === 'rejected') {
+        statusBadge = `<span class="status-pill status-rejected">🚫 Recusado</span>`;
+        actionButtons = `
+          <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'approved', '${u.email}')" title="Reativar acesso">
+            <i class="ri-restart-line"></i> Liberar Acesso
+          </button>
+        `;
+      }
+
+      return `
+        <tr>
+          <td><strong>${name}</strong></td>
+          <td>${u.email}</td>
+          <td>${createdDate}</td>
+          <td><span style="font-size:0.75rem; color:var(--text-muted);">${u.role === 'admin' ? 'Administrador' : 'Corretor / Vendedor'}</span></td>
+          <td>${statusBadge}</td>
+          <td style="text-align: right;">${actionButtons}</td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  async handleUpdateUserStatus(userId, newStatus, userEmail) {
+    const actionLabel = newStatus === 'approved' ? 'liberar' : 'bloquear / recusar';
+    if (!confirm(`Deseja realmente ${actionLabel} o acesso de ${userEmail}?`)) {
+      return;
+    }
+
+    try {
+      await CloudSync.updateUserStatus(userId, newStatus, this.currentUser?.email);
+      await CloudSync.recordInteraction('SISTEMA', 'user_status_change', `${this.currentUser?.email} alterou status de ${userEmail} para: ${newStatus}`);
+
+      const target = (this.systemUsers || []).find(u => u.id === userId);
+      if (target) {
+        target.status = newStatus;
+      }
+      this.renderSystemUsersTable();
+      await this.loadAuditFeed();
+      alert(`✔ Status de ${userEmail} atualizado para: ${newStatus === 'approved' ? 'Aprovado' : 'Bloqueado'}!`);
+    } catch (err) {
+      alert('Erro ao atualizar usuário: ' + (err.message || err));
+    }
+  },
+
+  setupRealtimeSync() {
+    if (!CloudSync.client) return;
+    try {
+      CloudSync.client
+        .channel('admin:realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, (payload) => {
+          this.loadSystemUsers();
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lead_interactions' }, (payload) => {
+          this.loadAuditFeed();
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime subscription error:', e);
+    }
   },
 
   async loadAuditFeed() {

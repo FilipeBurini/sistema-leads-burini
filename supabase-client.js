@@ -103,6 +103,115 @@ const CloudSync = {
     this.listeners.onAuthChange.forEach(cb => cb(event, user));
   },
 
+  // --- GESTÃO DE USUÁRIOS E APROVAÇÃO PRÉVIA ---
+
+  async registerUserInSystem(user, fullName = '') {
+    if (!this.client || !user) return null;
+    const isAdmin = this.isAdmin(user);
+    const initialStatus = isAdmin ? 'approved' : 'pending';
+    const role = isAdmin ? 'admin' : 'seller';
+
+    try {
+      const { data, error } = await this.client
+        .from('system_users')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          full_name: fullName || user.user_metadata?.full_name || '',
+          status: initialStatus,
+          role: role,
+          created_at: user.created_at || new Date().toISOString()
+        }, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (error) {
+        console.warn('Erro ao salvar em system_users:', error);
+      }
+      return data;
+    } catch (e) {
+      console.warn('Falha em registerUserInSystem:', e);
+      return null;
+    }
+  },
+
+  async checkUserApproval(user) {
+    if (!user) return { status: 'none', isApproved: false };
+    if (this.isAdmin(user)) return { status: 'approved', isApproved: true, role: 'admin' };
+
+    if (!this.client) return { status: 'approved', isApproved: true, role: 'seller' };
+
+    try {
+      const { data, error } = await this.client
+        .from('system_users')
+        .select('status, role, full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('Erro ao checar status em system_users:', error);
+        return { status: 'approved', isApproved: true, role: 'seller' };
+      }
+
+      if (!data) {
+        await this.registerUserInSystem(user);
+        return { status: 'pending', isApproved: false, role: 'seller' };
+      }
+
+      return {
+        status: data.status,
+        isApproved: data.status === 'approved',
+        role: data.role
+      };
+    } catch (e) {
+      console.warn('Falha ao consultar aprovação:', e);
+      return { status: 'approved', isApproved: true, role: 'seller' };
+    }
+  },
+
+  async fetchSystemUsers() {
+    if (!this.client) return [];
+    try {
+      const { data, error } = await this.client
+        .from('system_users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar system_users:', error);
+        return [];
+      }
+      return data || [];
+    } catch (e) {
+      console.error('Erro ao buscar usuários do sistema:', e);
+      return [];
+    }
+  },
+
+  async updateUserStatus(userId, newStatus, adminEmail = '') {
+    if (!this.client || !userId) return false;
+    try {
+      const updatePayload = {
+        status: newStatus,
+        approved_by: adminEmail || this.currentUser?.email || 'admin'
+      };
+      if (newStatus === 'approved') {
+        updatePayload.approved_at = new Date().toISOString();
+      }
+
+      const { error } = await this.client
+        .from('system_users')
+        .update(updatePayload)
+        .eq('id', userId);
+
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.error('Erro ao atualizar status do usuário:', e);
+      throw e;
+    }
+  },
+
   // --- SINCRONIZAÇÃO EM TEMPO REAL (WEBSOCKETS) ---
 
   setupRealtime() {

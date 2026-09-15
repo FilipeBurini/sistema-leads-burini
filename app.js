@@ -2626,6 +2626,18 @@ function setupCloudSyncIntegration() {
     }
 
     if (user) {
+      // Verificar se o usuário foi aprovado pelo Admin Master
+      if (CloudSync.checkUserApproval) {
+        CloudSync.checkUserApproval(user).then(approval => {
+          if (!approval.isApproved) {
+            CloudSync.logout().then(() => {
+              alert('Sua conta está aguardando aprovação ou teve o acesso revogado pelo Administrador.');
+              window.location.href = 'login.html';
+            });
+          }
+        });
+      }
+
       if (cloudStatusDot) { cloudStatusDot.className = 'cloud-dot online'; }
       const displayEmail = user.email || 'Usuário';
       if (cloudStatusText) { cloudStatusText.textContent = `Nuvem Ativa (${displayEmail})`; }

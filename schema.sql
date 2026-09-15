@@ -64,7 +64,22 @@ CREATE TABLE IF NOT EXISTS public.lead_interactions (
 
 CREATE INDEX IF NOT EXISTS idx_lead_interactions_lead_id ON public.lead_interactions (lead_id);
 
--- 3. TRIGGER AUTOMÁTICO PARA ATUALIZAR 'updated_at'
+-- 3. TABELA DE USUÁRIOS DO SISTEMA E CONTROLE DE APROVAÇÃO (WHITELIST)
+CREATE TABLE IF NOT EXISTS public.system_users (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    full_name TEXT,
+    status TEXT DEFAULT 'pending' NOT NULL, -- 'pending', 'approved', 'rejected'
+    role TEXT DEFAULT 'seller' NOT NULL, -- 'admin', 'seller'
+    approved_by TEXT,
+    approved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_system_users_email ON public.system_users (email);
+CREATE INDEX IF NOT EXISTS idx_system_users_status ON public.system_users (status);
+
+-- 4. TRIGGER AUTOMÁTICO PARA ATUALIZAR 'updated_at'
 CREATE OR REPLACE FUNCTION update_modified_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -79,9 +94,10 @@ CREATE TRIGGER set_leads_updated_at
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_column();
 
--- 4. SEGURANÇA (ROW LEVEL SECURITY - RLS)
+-- 5. SEGURANÇA (ROW LEVEL SECURITY - RLS)
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lead_interactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_users ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para permitir que usuários autenticados leiam e atualizem todos os leads
 DROP POLICY IF EXISTS "Usuários autenticados podem ver todos os leads" ON public.leads;
@@ -117,9 +133,29 @@ CREATE POLICY "Usuários autenticados podem gravar histórico"
     TO authenticated
     WITH CHECK (true);
 
--- 5. HABILITAR ATUALIZAÇÕES EM TEMPO REAL (SUPABASE REALTIME)
--- Permite que quando você alterar um status no celular, o PC receba a alteração na hora via WebSockets!
+-- Políticas para Gestão de Usuários (system_users)
+DROP POLICY IF EXISTS "Usuários autenticados podem consultar usuários" ON public.system_users;
+CREATE POLICY "Usuários autenticados podem consultar usuários"
+    ON public.system_users FOR SELECT
+    TO authenticated
+    USING (true);
+
+DROP POLICY IF EXISTS "Qualquer usuário pode registrar seu pedido de acesso" ON public.system_users;
+CREATE POLICY "Qualquer usuário pode registrar seu pedido de acesso"
+    ON public.system_users FOR INSERT
+    TO authenticated
+    WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Administradores podem atualizar status dos usuários" ON public.system_users;
+CREATE POLICY "Administradores podem atualizar status dos usuários"
+    ON public.system_users FOR ALL
+    TO authenticated
+    USING (true)
+    WITH CHECK (true);
+
+-- 6. HABILITAR ATUALIZAÇÕES EM TEMPO REAL (SUPABASE REALTIME)
+-- Permite que quando um usuário se cadastrar ou for aprovado, o painel receba na hora via WebSockets!
 BEGIN;
   DROP PUBLICATION IF EXISTS supabase_realtime;
-  CREATE PUBLICATION supabase_realtime FOR TABLE public.leads, public.lead_interactions;
+  CREATE PUBLICATION supabase_realtime FOR TABLE public.leads, public.lead_interactions, public.system_users;
 COMMIT;

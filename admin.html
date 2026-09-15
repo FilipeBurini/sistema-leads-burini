@@ -154,6 +154,43 @@
 
     </section>
 
+    <!-- SEÇÃO: GESTÃO DE USUÁRIOS E APROVAÇÃO DE ACESSOS -->
+    <section class="panel-card user-approval-section">
+      <div class="panel-header">
+        <h3 class="panel-title">
+          <i class="ri-user-follow-line" style="color: #fbbf24;"></i> Gestão de Usuários & Aprovações de Acesso
+        </h3>
+        <div class="user-stats-badges">
+          <span class="user-badge pending" id="badgePendingUsersCount">⏳ 0 Pendentes</span>
+          <span class="user-badge approved" id="badgeApprovedUsersCount">✅ 0 Aprovados</span>
+        </div>
+      </div>
+
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Qualquer pessoa que criar conta no sistema fica bloqueada até que você clique em <strong>Aprovar</strong> abaixo. Você tem controle total para liberar ou revogar acessos a qualquer momento.
+      </p>
+
+      <div class="leads-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Nome Completo</th>
+              <th>E-mail</th>
+              <th>Data do Cadastro</th>
+              <th>Perfil</th>
+              <th>Status</th>
+              <th style="text-align: right;">Ações de Liberação</th>
+            </tr>
+          </thead>
+          <tbody id="systemUsersTableBody">
+            <tr>
+              <td colspan="6" style="text-align: center; color: #94a3b8; padding: 1.5rem;">Carregando usuários do sistema...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- Linha 2: Inteligência de Mercado (Maquininhas & Segmentos) -->
     <section class="dashboard-grid-dual">
       
