@@ -11,8 +11,8 @@
 
 window.SUPABASE_CONFIG = {
   // URL e Anon Key do seu projeto Supabase:
-  url: localStorage.getItem('citymap_supabase_url') || '',
-  anonKey: localStorage.getItem('citymap_supabase_key') || '',
+  url: 'https://ubnpeahxlffutiuopafm.supabase.co',
+  anonKey: 'sb_publishable_G8l2tHVnRTNLJN6UFqigGQ_yAjCLvOi',
 
   // Lista de Administradores Master com acesso total a configurações e carga de dados:
   adminEmails: [
