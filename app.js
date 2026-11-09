@@ -131,7 +131,9 @@ const AppState = {
 document.addEventListener('DOMContentLoaded', async () => {
   initMap();
   await loadInitialPlaces();
+  await loadCnpjLeadsIntoPlaces();
   setupEventListeners();
+  initCnpjExplorerModal();
   setupHorizontalScrollHelpers();
   setupCloudSyncIntegration();
   updateUI();
@@ -498,6 +500,8 @@ function updateCategoryCounts() {
   if (elHt) elHt.textContent = segCounts.high_turnover;
   const elHticket = document.getElementById('count-high-ticket');
   if (elHticket) elHticket.textContent = segCounts.high_ticket;
+  const elCnpjHero = document.getElementById('count-cnpj-hero');
+  if (elCnpjHero) elCnpjHero.textContent = segCounts.novo_cnpj;
 
   const elChipAll = document.getElementById('chip-count-all');
   if (elChipAll) elChipAll.textContent = segCounts.all;
@@ -899,16 +903,63 @@ window.selectPlace = function(placeId, zoomIn = false) {
           </div>
         ` : ''}
         ${place.cnpj ? `
-          <div class="info-item" style="background: rgba(56, 189, 248, 0.08); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.2); grid-column: 1 / -1;">
-            <i class="ri-article-line" style="color: #38bdf8; font-size: 1.2rem; align-self: flex-start; margin-top: 2px;"></i>
-            <div style="display: flex; flex-direction: column; gap: 3px; flex: 1;">
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: #38bdf8; font-weight: 700;">Receita Federal • Novo CNPJ</span>
-                ${place.dataAbertura ? `<span style="font-size: 0.72rem; color: #94a3b8;"><i class="ri-calendar-line"></i> ${escapeHtml(place.dataAbertura)}</span>` : ''}
-              </div>
-              <strong style="color: #f8fafc; font-size: 0.88rem; font-family: monospace;">${escapeHtml(place.cnpj)}</strong>
-              ${place.cnae ? `<span style="font-size: 0.76rem; color: #cbd5e1; line-height: 1.35; margin-top: 2px;"><i class="ri-price-tag-3-line" style="color: #38bdf8; font-size: 0.76rem;"></i> CNAE: ${escapeHtml(place.cnae)}</span>` : ''}
+          <div class="info-item" style="background: rgba(56, 189, 248, 0.08); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.25); grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: #38bdf8; font-weight: 700;">
+                <i class="ri-file-text-fill"></i> Receita Federal • CNPJ Oficial
+              </span>
+              ${place.dataAbertura ? `<span style="font-size: 0.72rem; color: #94a3b8;"><i class="ri-calendar-line"></i> Abertura: ${escapeHtml(place.dataAbertura)}</span>` : ''}
             </div>
+
+            <div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;">
+              <strong style="color: #f8fafc; font-size: 0.95rem; font-family: monospace;">${escapeHtml(place.cnpj)}</strong>
+              ${place.porte ? `<span style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 600;">${escapeHtml(place.porte)}</span>` : ''}
+            </div>
+
+            ${place.razaoSocial && place.razaoSocial.toLowerCase() !== place.name.toLowerCase() ? `
+              <div style="font-size: 0.76rem; color: #94a3b8; line-height: 1.3;">
+                <span style="color: #64748b;">Razão Social:</span> <strong style="color: #cbd5e1;">${escapeHtml(place.razaoSocial)}</strong>
+              </div>
+            ` : ''}
+
+            ${place.cnae ? `
+              <div style="font-size: 0.75rem; color: #94a3b8; line-height: 1.35;">
+                <span style="color: #64748b;">CNAE:</span> <span style="color: #cbd5e1;">${escapeHtml(place.cnae)}</span>
+              </div>
+            ` : ''}
+
+            ${place.capitalSocial ? `
+              <div style="font-size: 0.75rem; color: #94a3b8;">
+                <span style="color: #64748b;">Capital Social:</span> <strong style="color: #34d399;">R$ ${Number(place.capitalSocial).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+              </div>
+            ` : ''}
+
+            ${place.faixaReceitaEstimada ? `
+              <div style="font-size: 0.75rem; color: #94a3b8;">
+                <span style="color: #64748b;">Faturamento Estimado:</span> <span style="color: #fbbf24;">${escapeHtml(place.faixaReceitaEstimada)}</span>
+              </div>
+            ` : ''}
+
+            ${place.socios && place.socios.length > 0 ? `
+              <div style="margin-top: 4px; padding-top: 6px; border-top: 1px dashed rgba(56, 189, 248, 0.2);">
+                <span style="font-size: 0.72rem; color: #94a3b8; font-weight: 600; text-transform: uppercase;">Sócios & Administradores (QSA):</span>
+                <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px;">
+                  ${place.socios.map(s => `
+                    <div style="font-size: 0.75rem; color: #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                      <span><i class="ri-user-line" style="color: #38bdf8; font-size: 0.75rem;"></i> ${escapeHtml(s.nome)}</span>
+                      <span style="font-size: 0.68rem; color: #94a3b8;">${escapeHtml(s.qualificacao || 'Sócio')}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${place.isGhostSuspect ? `
+              <div style="margin-top: 4px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; padding: 6px 10px; font-size: 0.75rem; color: #fbbf24; display: flex; align-items: flex-start; gap: 6px;">
+                <i class="ri-alert-fill" style="font-size: 1rem; margin-top: 1px;"></i>
+                <span><strong>Alerta Fantasma:</strong> ${escapeHtml(place.ghostReason || 'Múltiplos CNPJs registrados no mesmo endereço.')}</span>
+              </div>
+            ` : ''}
           </div>
         ` : ''}
       </div>
@@ -1563,6 +1614,7 @@ function setupEventListeners() {
 
   // Foco Comercial: Botão Hero de Parcelados Alto Valor
   const quickHighTicketBtn = document.getElementById('quickHighTicketBtn');
+  const quickCnpjBtn = document.getElementById('quickCnpjBtn');
 
   if (quickHighTicketBtn) {
     quickHighTicketBtn.addEventListener('click', () => {
@@ -1576,9 +1628,33 @@ function setupEventListeners() {
       } else {
         AppState.commercialSegmentFilter = 'high_ticket';
         quickHighTicketBtn.classList.add('active');
+        if (quickCnpjBtn) quickCnpjBtn.classList.remove('active');
         document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(c => c.classList.remove('active'));
         updateUI();
         showToast('💎 Exibindo alvos de parcelamento e alto ticket!');
+      }
+    });
+  }
+
+  // Foco Comercial: Botão Hero de Base de CNPJs (Receita Federal)
+  if (quickCnpjBtn) {
+    quickCnpjBtn.addEventListener('click', () => {
+      if (AppState.commercialSegmentFilter === 'novo_cnpj') {
+        AppState.commercialSegmentFilter = 'all';
+        quickCnpjBtn.classList.remove('active');
+        const chipAll = document.querySelector('#commercialSegmentChips .commercial-chip[data-segment="all"]');
+        if (chipAll) chipAll.classList.add('active');
+        updateUI();
+        showToast('Exibindo todos os estabelecimentos.');
+      } else {
+        AppState.commercialSegmentFilter = 'novo_cnpj';
+        quickCnpjBtn.classList.add('active');
+        if (quickHighTicketBtn) quickHighTicketBtn.classList.remove('active');
+        document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(c => c.classList.remove('active'));
+        const chipCnpj = document.querySelector('#commercialSegmentChips .commercial-chip[data-segment="novo_cnpj"]');
+        if (chipCnpj) chipCnpj.classList.add('active');
+        updateUI();
+        showToast('🏢 Exibindo empresas com CNPJ Oficial da Receita Federal!');
       }
     });
   }
@@ -1593,6 +1669,9 @@ function setupEventListeners() {
       
       if (quickHighTicketBtn) {
         quickHighTicketBtn.classList.toggle('active', segment === 'high_ticket');
+      }
+      if (quickCnpjBtn) {
+        quickCnpjBtn.classList.toggle('active', segment === 'novo_cnpj');
       }
 
       updateUI();
@@ -3100,6 +3179,7 @@ function setupCloudSyncIntegration() {
       if (cloudLeads !== null) {
         // O conjunto de leads do usuário é definido estritamente pela sua permissão na nuvem
         AppState.places = cloudLeads.map(enrichPlace);
+        await loadCnpjLeadsIntoPlaces();
         savePlaces();
         updateUI();
 
@@ -3173,5 +3253,378 @@ function setupCloudSyncIntegration() {
   updateStatusUI(CloudSync.currentUser);
   if (CloudSync.isConfigured) {
     syncFromCloud(false);
+  }
+}
+
+// --- INTEGRAÇÃO DA BASE DE CNPJS OFICIAIS (RECEITA FEDERAL / FICHÁRIO) ---
+async function loadCnpjLeadsIntoPlaces() {
+  try {
+    let cnpjList = [];
+    if (window.DEFAULT_CNPJ_DATA && Array.isArray(window.DEFAULT_CNPJ_DATA) && window.DEFAULT_CNPJ_DATA.length > 0) {
+      cnpjList = window.DEFAULT_CNPJ_DATA;
+    } else if (window.CloudSync && CloudSync.fetchCnpjLeads) {
+      cnpjList = await CloudSync.fetchCnpjLeads();
+    } else {
+      const res = await fetch('data/cnpj-leads.json?v=' + Date.now());
+      if (res.ok) cnpjList = await res.json();
+    }
+
+    if (!Array.isArray(cnpjList) || cnpjList.length === 0) return;
+
+    AppState.cnpjLeads = cnpjList;
+
+    let enrichedCount = 0;
+    let newLeadsAdded = 0;
+
+    // Index existing places by ID and name
+    const placesById = new Map();
+    const placesByName = new Map();
+    AppState.places.forEach(p => {
+      if (p.id) placesById.set(p.id, p);
+      if (p.name) placesByName.set(p.name.toLowerCase().trim(), p);
+    });
+
+    cnpjList.forEach(c => {
+      const cnpjClean = (c.cnpj || '').replace(/\D/g, '');
+      const cnpjFmt = c.cnpj_formatted || (cnpjClean.length === 14 ? cnpjClean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : c.cnpj);
+
+      let matchedPlace = null;
+      if (c.matched_lead_id && placesById.has(c.matched_lead_id)) {
+        matchedPlace = placesById.get(c.matched_lead_id);
+      } else {
+        const fant = (c.nome_fantasia || '').toLowerCase().trim();
+        const raz = (c.razao_social || '').toLowerCase().trim();
+        if (fant && placesByName.has(fant)) matchedPlace = placesByName.get(fant);
+        else if (raz && placesByName.has(raz)) matchedPlace = placesByName.get(raz);
+      }
+
+      if (matchedPlace) {
+        matchedPlace.cnpj = cnpjFmt;
+        matchedPlace.razaoSocial = c.razao_social;
+        matchedPlace.capitalSocial = c.capital_social;
+        matchedPlace.socios = c.socios;
+        matchedPlace.faixaReceitaEstimada = c.faixa_receita_estimada;
+        matchedPlace.cnae = c.cnae_principal ? `${c.cnae_principal} - ${c.cnae_descricao || ''}` : matchedPlace.cnae;
+        matchedPlace.dataAbertura = c.data_abertura || matchedPlace.dataAbertura;
+        matchedPlace.porte = c.porte || matchedPlace.porte;
+        matchedPlace.isGhostSuspect = c.is_ghost_suspect || false;
+        matchedPlace.ghostReason = c.ghost_reason || '';
+        matchedPlace.ghostCountAtAddress = c.ghost_count_at_address || 1;
+        if (!matchedPlace.tags) matchedPlace.tags = [];
+        if (!matchedPlace.tags.includes('Com CNPJ')) matchedPlace.tags.push('Com CNPJ');
+        enrichedCount++;
+      } else {
+        const id = 'cnpj_' + cnpjClean;
+        if (!placesById.has(id)) {
+          const cnaeCode = c.cnae_principal || '';
+          const isHighTicket = !cnaeCode.startsWith('561'); // High ticket para óticas, odonto, móveis, celulares, estética
+
+          // Deterministic coordinate distribution around Franca Centro / Bairros
+          const hash = cnpjClean.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          const latOffset = ((hash % 100) - 50) * 0.00035;
+          const lngOffset = (((hash * 7) % 100) - 50) * 0.00035;
+
+          const newPlace = {
+            id: id,
+            name: c.nome_fantasia || c.razao_social,
+            razaoSocial: c.razao_social,
+            category: determineCategoryFromCnae(cnaeCode),
+            subCategory: c.cnae_descricao || 'Receita Federal',
+            address: c.endereco_completo || `${c.logradouro || ''}, ${c.numero || 'S/N'} - ${c.bairro || 'Centro'}, Franca - SP`,
+            neighborhood: c.bairro || 'Centro',
+            city: c.municipio || 'Franca',
+            state: c.uf || 'SP',
+            lat: -20.5386 + latOffset,
+            lng: -47.4009 + lngOffset,
+            phone: c.telefone || '',
+            whatsapp: c.telefone ? c.telefone.replace(/\D/g, '') : '',
+            email: c.email || '',
+            cnpj: cnpjFmt,
+            cnae: c.cnae_principal ? `${c.cnae_principal} - ${c.cnae_descricao || ''}` : '',
+            dataAbertura: c.data_abertura || '',
+            porte: c.porte || 'Demais',
+            capitalSocial: c.capital_social || 0,
+            socios: c.socios || [],
+            faixaReceitaEstimada: c.faixa_receita_estimada || '',
+            isGhostSuspect: c.is_ghost_suspect || false,
+            ghostReason: c.ghost_reason || '',
+            ghostCountAtAddress: c.ghost_count_at_address || 1,
+            isHighTicket: isHighTicket,
+            isHighTurnover: false,
+            isChain: false,
+            commercialSegment: determineSegmentFromCnae(cnaeCode),
+            crmStage: 'lead',
+            visited: false,
+            tags: ['Novo CNPJ', 'Receita Federal', c.porte || 'Empresa'],
+            createdAt: new Date().toISOString()
+          };
+          AppState.places.push(newPlace);
+          placesById.set(id, newPlace);
+          newLeadsAdded++;
+        }
+      }
+    });
+
+    console.log(`[CNPJ] Base carregada: ${cnpjList.length} empresas (${enrichedCount} vinculados, ${newLeadsAdded} novos adicionados).`);
+    updateCategoryCounts();
+  } catch (err) {
+    console.warn('[CNPJ] Erro ao integrar base de CNPJs:', err);
+  }
+}
+
+function determineCategoryFromCnae(cnaeCode) {
+  if (!cnaeCode) return 'comercio';
+  const c = String(cnaeCode).replace(/\D/g, '');
+  if (c.startsWith('863') || c.startsWith('86') || c.startsWith('9602')) return 'saude';
+  if (c.startsWith('561') || c.startsWith('562')) return 'alimentacao';
+  if (c.startsWith('471') || c.startsWith('472')) return 'alimentacao';
+  if (c.startsWith('4774') || c.startsWith('478') || c.startsWith('475')) return 'comercio';
+  if (c.startsWith('452') || c.startsWith('45')) return 'servicos';
+  return 'comercio';
+}
+
+function determineSegmentFromCnae(cnaeCode) {
+  if (!cnaeCode) return 'novo_cnpj';
+  const c = String(cnaeCode).replace(/\D/g, '');
+  if (c.startsWith('863') || c.startsWith('9602')) return 'odonto_estetica';
+  if (c.startsWith('4774') || c.startsWith('4783')) return 'otica_joia';
+  if (c.startsWith('4781') || c.startsWith('4782')) return 'moda_calcados';
+  if (c.startsWith('4520')) return 'auto_center';
+  if (c.startsWith('4751') || c.startsWith('4752')) return 'celulares_tech';
+  if (c.startsWith('4754')) return 'moveis_construcao';
+  if (c.startsWith('5611')) return 'restaurante';
+  return 'novo_cnpj';
+}
+
+// --- MODAL EXPLORADOR DA BASE DE CNPJS DA RECEITA FEDERAL ---
+function initCnpjExplorerModal() {
+  const modal = document.getElementById('cnpjExplorerModal');
+  const openBtn = document.getElementById('openCnpjExplorerBtn');
+  const closeBtn = document.getElementById('closeCnpjExplorerModalBtn');
+  const searchInput = document.getElementById('cnpjModalSearchInput');
+  const refreshBtn = document.getElementById('refreshCnpjModalBtn');
+  const cardsContainer = document.getElementById('cnpjModalCardsContainer');
+
+  if (!modal) return;
+
+  function openModal() {
+    modal.classList.add('open');
+    renderCnpjExplorer();
+    if (searchInput) searchInput.focus();
+  }
+
+  function closeModal() {
+    modal.classList.remove('open');
+  }
+
+  if (openBtn) {
+    openBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const dropdown = document.getElementById('dataDropdownMenu');
+      if (dropdown) dropdown.classList.remove('open');
+      openModal();
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeModal);
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) {
+      closeModal();
+    }
+  });
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      renderCnpjExplorer(searchInput.value.toLowerCase().trim());
+    });
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      showToast('Recarregando base de CNPJs...');
+      await loadCnpjLeadsIntoPlaces();
+      renderCnpjExplorer(searchInput ? searchInput.value.toLowerCase().trim() : '');
+      showToast('Base de CNPJs atualizada!');
+    });
+  }
+
+  function renderCnpjExplorer(searchTerm = '') {
+    const list = AppState.cnpjLeads || [];
+    const kpiTotal = document.getElementById('modalKpiTotalCnpjs');
+    const kpiMatched = document.getElementById('modalKpiMatchedLeads');
+    const kpiGhosts = document.getElementById('modalKpiGhostSuspects');
+
+    if (kpiTotal) kpiTotal.textContent = list.length;
+    if (kpiMatched) kpiMatched.textContent = list.filter(c => !!c.matched_lead_id).length;
+    if (kpiGhosts) kpiGhosts.textContent = list.filter(c => !!c.is_ghost_suspect).length;
+
+    if (!cardsContainer) return;
+
+    let filtered = list;
+    if (searchTerm) {
+      filtered = list.filter(c => {
+        const cnpjStr = (c.cnpj_formatted || c.cnpj || '').toLowerCase();
+        const raz = (c.razao_social || '').toLowerCase();
+        const fan = (c.nome_fantasia || '').toLowerCase();
+        const cnae = (c.cnae_descricao || c.cnae_principal || '').toLowerCase();
+        const end = (c.endereco_completo || '').toLowerCase();
+        const soc = (Array.isArray(c.socios) ? c.socios.map(s => s.nome).join(' ') : '').toLowerCase();
+        return cnpjStr.includes(searchTerm) || raz.includes(searchTerm) || fan.includes(searchTerm) || cnae.includes(searchTerm) || end.includes(searchTerm) || soc.includes(searchTerm);
+      });
+    }
+
+    if (filtered.length === 0) {
+      cardsContainer.innerHTML = `
+        <div style="text-align: center; padding: 3rem 1rem; color: #94a3b8;">
+          <i class="ri-search-line" style="font-size: 2.2rem; display: block; margin-bottom: 0.5rem; opacity: 0.5;"></i>
+          <p style="margin: 0; font-size: 0.95rem;">Nenhuma empresa encontrada para "${escapeHtml(searchTerm)}".</p>
+          <span style="font-size: 0.8rem; color: #64748b;">Tente buscar por outro termo, CNPJ, CNAE ou sócio.</span>
+        </div>
+      `;
+      return;
+    }
+
+    cardsContainer.innerHTML = filtered.map(c => {
+      const cnpjClean = (c.cnpj || '').replace(/\D/g, '');
+      const cnpjFmt = c.cnpj_formatted || (cnpjClean.length === 14 ? cnpjClean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : c.cnpj);
+      const porte = c.porte || 'Demais';
+      const porteBadgeColor = porte === 'ME' ? '#38bdf8' : (porte === 'EPP' ? '#a855f7' : '#94a3b8');
+      const capitalFmt = c.capital_social ? `R$ ${Number(c.capital_social).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Não informado';
+      const isMatched = !!c.matched_lead_id;
+
+      return `
+        <div class="cnpj-explorer-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; transition: border-color 0.2s;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; flex-wrap: wrap;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase;">
+                  ${escapeHtml(c.situacao || 'ATIVA')}
+                </span>
+                <span style="background: rgba(56, 189, 248, 0.12); color: ${porteBadgeColor}; font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 4px;">
+                  Porte: ${escapeHtml(porte)}
+                </span>
+                ${isMatched ? '<span style="background: rgba(129, 140, 248, 0.15); color: #a5b4fc; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 4px;"><i class="ri-link"></i> Vinculado a Lead</span>' : '<span style="background: rgba(56, 189, 248, 0.1); color: #38bdf8; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 4px;"><i class="ri-sparkling-fill"></i> Empresa Nova</span>'}
+              </div>
+              <h4 style="margin: 0.4rem 0 0.1rem; color: #fff; font-size: 1rem; font-weight: 700; line-height: 1.3;">
+                ${escapeHtml(c.nome_fantasia || c.razao_social)}
+              </h4>
+              ${c.nome_fantasia && c.razao_social !== c.nome_fantasia ? `
+                <span style="font-size: 0.76rem; color: #94a3b8;">Razão: <strong style="color: #cbd5e1;">${escapeHtml(c.razao_social)}</strong></span>
+              ` : ''}
+            </div>
+
+            <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+              <span style="font-family: monospace; font-size: 0.95rem; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.25);">
+                ${escapeHtml(cnpjFmt)}
+              </span>
+              ${c.data_abertura ? `<span style="font-size: 0.7rem; color: #64748b;"><i class="ri-calendar-line"></i> Abertura: ${escapeHtml(c.data_abertura)}</span>` : ''}
+            </div>
+          </div>
+
+          <!-- DETALHES COMERCIAIS & FINANCEIROS -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem; background: rgba(2, 6, 23, 0.4); padding: 0.65rem 0.85rem; border-radius: 6px; font-size: 0.78rem;">
+            <div>
+              <span style="color: #64748b; display: block; font-size: 0.7rem;">CNAE Principal:</span>
+              <strong style="color: #cbd5e1;">${escapeHtml(c.cnae_principal || '')} - ${escapeHtml(c.cnae_descricao || 'Atividade Comercial')}</strong>
+            </div>
+            <div>
+              <span style="color: #64748b; display: block; font-size: 0.7rem;">Capital Social:</span>
+              <strong style="color: #34d399;">${escapeHtml(capitalFmt)}</strong>
+            </div>
+            <div>
+              <span style="color: #64748b; display: block; font-size: 0.7rem;">Faturamento Estimado:</span>
+              <strong style="color: #fbbf24;">${escapeHtml(c.faixa_receita_estimada || 'Sob Consulta')}</strong>
+            </div>
+          </div>
+
+          <!-- QUADRO DE SÓCIOS (QSA) -->
+          ${Array.isArray(c.socios) && c.socios.length > 0 ? `
+            <div style="font-size: 0.78rem;">
+              <span style="color: #94a3b8; font-weight: 600; font-size: 0.72rem; text-transform: uppercase;">Sócios & Administradores:</span>
+              <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.3rem;">
+                ${c.socios.map(s => `
+                  <span style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 3px 8px; border-radius: 4px; color: #e2e8f0; font-size: 0.74rem;">
+                    <i class="ri-user-line" style="color: #38bdf8;"></i> ${escapeHtml(s.nome)} <small style="color: #94a3b8;">(${escapeHtml(s.qualificacao || 'Sócio')})</small>
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- ALERTA FANTASMA SE SUSPEITO -->
+          ${c.is_ghost_suspect ? `
+            <div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.75rem; color: #fbbf24; display: flex; align-items: flex-start; gap: 0.5rem;">
+              <i class="ri-alert-fill" style="font-size: 1.1rem; margin-top: 1px;"></i>
+              <div>
+                <strong>Atenção ao Endereço:</strong> ${escapeHtml(c.ghost_reason || 'Múltiplos CNPJs registrados no mesmo endereço.')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- FOOTER DO CARD COM LOCALIZAÇÃO E BOTÃO DE AÇÃO -->
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 0.25rem; padding-top: 0.6rem; border-top: 1px solid rgba(255, 255, 255, 0.05); flex-wrap: wrap;">
+            <div style="font-size: 0.75rem; color: #94a3b8; display: flex; align-items: center; gap: 4px;">
+              <i class="ri-map-pin-line" style="color: #38bdf8;"></i>
+              <span>${escapeHtml(c.endereco_completo || `${c.logradouro || ''}, ${c.numero || ''} - ${c.bairro || ''}`)}</span>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem;">
+              ${c.telefone ? `
+                <a href="tel:${escapeHtml(c.telefone.replace(/\s/g, ''))}" class="btn btn-secondary" style="font-size: 0.72rem; padding: 0.35rem 0.65rem; text-decoration: none;">
+                  <i class="ri-phone-fill"></i> Ligar
+                </a>
+              ` : ''}
+              <button class="btn btn-primary locate-cnpj-btn" data-cnpj="${escapeHtml(cnpjClean)}" data-matched-id="${escapeHtml(c.matched_lead_id || '')}" style="font-size: 0.72rem; padding: 0.35rem 0.75rem;">
+                <i class="ri-map-pin-2-fill"></i> Ver no Mapa
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Adicionar eventos aos botões "Ver no Mapa"
+    cardsContainer.querySelectorAll('.locate-cnpj-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cnpjVal = btn.dataset.cnpj;
+        const matchedId = btn.dataset.matchedId;
+        closeModal();
+
+        // Limpar filtros para garantir visualização
+        AppState.commercialSegmentFilter = 'all';
+        document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(c => c.classList.remove('active'));
+        const chipAll = document.querySelector('#commercialSegmentChips .commercial-chip[data-segment="all"]');
+        if (chipAll) chipAll.classList.add('active');
+        const heroHighTicket = document.getElementById('quickHighTicketBtn');
+        if (heroHighTicket) heroHighTicket.classList.remove('active');
+        const heroCnpj = document.getElementById('quickCnpjBtn');
+        if (heroCnpj) heroCnpj.classList.remove('active');
+
+        updateUI();
+
+        // Buscar local por matchedId ou id 'cnpj_' + cnpjVal ou cnpj formatado
+        let targetPlace = null;
+        if (matchedId) {
+          targetPlace = AppState.places.find(p => p.id === matchedId);
+        }
+        if (!targetPlace && cnpjVal) {
+          targetPlace = AppState.places.find(p => p.id === 'cnpj_' + cnpjVal || (p.cnpj && p.cnpj.replace(/\D/g, '') === cnpjVal));
+        }
+
+        if (targetPlace) {
+          selectPlace(targetPlace.id, true);
+          showToast(`📍 Exibindo no mapa: ${targetPlace.name}`);
+        } else {
+          showToast('Empresa localizada na base geral.');
+        }
+      });
+    });
   }
 }

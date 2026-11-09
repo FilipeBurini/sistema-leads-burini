@@ -286,12 +286,16 @@ const CloudSync = {
   // --- BASE DEDICADA DE CNPJS (RECEITA FEDERAL / FICHÁRIO) ---
 
   async fetchCnpjLeads() {
+    if (window.DEFAULT_CNPJ_DATA && Array.isArray(window.DEFAULT_CNPJ_DATA) && window.DEFAULT_CNPJ_DATA.length > 0) {
+      if (!this.client) return window.DEFAULT_CNPJ_DATA;
+    }
+
     if (!this.client) {
       try {
         const res = await fetch('data/cnpj-leads.json?v=' + Date.now());
         if (res.ok) return await res.json();
       } catch (e) {}
-      return [];
+      return window.DEFAULT_CNPJ_DATA || [];
     }
 
     try {
@@ -303,6 +307,9 @@ const CloudSync = {
       if (error) {
         // Fallback local se a tabela ainda não tiver sido criada no Supabase
         console.warn('Tabela cnpj_leads não encontrada no Supabase, usando cache local:', error.message);
+        if (window.DEFAULT_CNPJ_DATA && Array.isArray(window.DEFAULT_CNPJ_DATA) && window.DEFAULT_CNPJ_DATA.length > 0) {
+          return window.DEFAULT_CNPJ_DATA;
+        }
         try {
           const res = await fetch('data/cnpj-leads.json?v=' + Date.now());
           if (res.ok) return await res.json();
@@ -312,6 +319,9 @@ const CloudSync = {
       return data || [];
     } catch (e) {
       console.warn('Erro ao buscar cnpj_leads:', e);
+      if (window.DEFAULT_CNPJ_DATA && Array.isArray(window.DEFAULT_CNPJ_DATA) && window.DEFAULT_CNPJ_DATA.length > 0) {
+        return window.DEFAULT_CNPJ_DATA;
+      }
       try {
         const res = await fetch('data/cnpj-leads.json?v=' + Date.now());
         if (res.ok) return await res.json();

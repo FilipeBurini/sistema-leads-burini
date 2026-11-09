@@ -592,6 +592,50 @@ body {
   border-color: #38bdf8;
 }
 
+/* BOTÃO HERO: BASE DE CNPJS (RECEITA FEDERAL) */
+.hero-profit-btn.hero-cnpj-btn {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.hero-profit-btn.hero-cnpj-btn:hover {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.6);
+}
+
+.hero-profit-btn.hero-cnpj-btn.active {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(2, 132, 199, 0.2));
+  border: 1px solid #38bdf8;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+}
+
+.hero-profit-btn.hero-cnpj-btn .hero-profit-icon {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.hero-profit-btn.hero-cnpj-btn.active .hero-profit-icon {
+  background: rgba(56, 189, 248, 0.3);
+  color: #7dd3fc;
+}
+
+.hero-profit-btn.hero-cnpj-btn.active .hero-profit-text strong {
+  color: #38bdf8;
+}
+
+.hero-profit-btn.hero-cnpj-btn .hero-profit-count {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.hero-profit-btn.hero-cnpj-btn.active .hero-profit-count {
+  background: #0284c7;
+  color: #fff;
+  border-color: #38bdf8;
+}
+
 .hero-profit-left {
   display: flex;
   align-items: center;
@@ -708,6 +752,23 @@ body {
   border-color: #64748b;
   color: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.commercial-chip.chip-cnpj {
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.commercial-chip.chip-cnpj:hover {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #38bdf8;
+}
+
+.commercial-chip.chip-cnpj.active {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
 }
 
 .commercial-chip.chip-adega.active {

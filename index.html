@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="style.css?v=2.5">
+  <link rel="stylesheet" href="style.css?v=2.6">
 
   <!-- Auth Guard: Exige autenticação antes de abrir o mapa -->
   <script>
@@ -181,9 +181,9 @@
           </label>
         </div>
 
-        <!-- ACELERADOR HERO: FOCO EM PARCELADOS DE ALTO VALOR -->
+        <!-- ACELERADOR HERO: PARCELADOS & BASE DE CNPJS -->
         <div class="hero-strategies-group">
-          <!-- ESTRATÉGIA: PARCELADOS DE ALTO VALOR -->
+          <!-- ESTRATÉGIA 1: PARCELADOS DE ALTO VALOR -->
           <button class="hero-profit-btn hero-highticket-btn" id="quickHighTicketBtn" title="Filtrar comércios com forte parcelamento e ticket alto (Odonto, Estética, Óticas, Roupas, Auto Centers, Móveis e Celulares)">
             <div class="hero-profit-left">
               <div class="hero-profit-icon">
@@ -196,6 +196,20 @@
             </div>
             <b class="hero-profit-count" id="count-high-ticket">0</b>
           </button>
+
+          <!-- ESTRATÉGIA 2: BASE DE CNPJS DA RECEITA FEDERAL -->
+          <button class="hero-profit-btn hero-cnpj-btn" id="quickCnpjBtn" title="Filtrar locais cadastrados com CNPJ oficial da Receita Federal / Fichário">
+            <div class="hero-profit-left">
+              <div class="hero-profit-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+                <i class="ri-file-text-fill"></i>
+              </div>
+              <div class="hero-profit-text">
+                <strong style="color: #38bdf8;">🏢 Base de CNPJs (Receita Federal)</strong>
+                <span>Sócios, QSA, Faturamento Estimado & Porte</span>
+              </div>
+            </div>
+            <b class="hero-profit-count" id="count-cnpj-hero" style="color: #38bdf8; background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.35);">0</b>
+          </button>
         </div>
 
         <!-- CHIPS DOS SEGMENTOS PRIORITÁRIOS -->
@@ -204,6 +218,11 @@
             <i class="ri-apps-line"></i>
             <span>Todos</span>
             <b id="chip-count-all">0</b>
+          </button>
+          <button class="commercial-chip chip-cnpj" data-segment="novo_cnpj" title="Filtrar estabelecimentos com CNPJ oficial da Receita Federal">
+            <i class="ri-file-text-line" style="color: #38bdf8;"></i>
+            <span>Com CNPJ</span>
+            <b id="chip-count-novo_cnpj">0</b>
           </button>
           <button class="commercial-chip chip-odonto" data-segment="odonto_estetica" title="Clínicas Odontológicas, Dentistas & Estética">
             <i class="ri-heart-pulse-fill" style="color: #a78bfa;"></i>
@@ -414,6 +433,7 @@
             <i class="ri-more-2-fill"></i>
           </button>
           <div class="dropdown-menu" id="dataDropdownMenu">
+            <button id="openCnpjExplorerBtn" style="color: #38bdf8;"><i class="ri-file-text-line"></i> Consultar Base de CNPJs & Dossiês</button>
             <button id="triggerApifyImportBtn" class="text-success"><i class="ri-file-excel-2-line"></i> Importar Planilha Apify (XLSX / CSV)</button>
             <button id="exportDefaultPlacesBtn" class="text-warning" style="color: #facc15;"><i class="ri-git-branch-line"></i> Baixar default-places.json (para Git)</button>
             <button id="exportDataBtn"><i class="ri-download-2-line"></i> Exportar Backup com Data (JSON)</button>
@@ -802,6 +822,63 @@
     </div>
   </div>
 
+  <!-- MODAL DE EXPLORAÇÃO DA BASE DE CNPJS DA RECEITA FEDERAL -->
+  <div class="modal-overlay" id="cnpjExplorerModal">
+    <div class="modal-card modal-large" style="max-width: 900px; max-height: 85vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(30, 58, 138, 0.3)); border-bottom: 1px solid rgba(56, 189, 248, 0.3);">
+        <div class="modal-title-wrap">
+          <i class="ri-file-text-fill" style="color: #38bdf8;"></i>
+          <div>
+            <h3 style="margin: 0; color: #fff;">Base de CNPJs Oficiais (Receita Federal & Fichário)</h3>
+            <span style="font-size: 0.75rem; color: #94a3b8;">Empresas mapeadas em Franca/SP com Sócios, Faturamento e Porte</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeCnpjExplorerModalBtn">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 1rem 1.25rem; overflow-y: auto; flex: 1;">
+        <!-- BARRA DE BUSCA E KPI CARDS -->
+        <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap;">
+          <div class="search-box" style="flex: 1; min-width: 240px; margin: 0;">
+            <i class="ri-search-line"></i>
+            <input type="text" id="cnpjModalSearchInput" placeholder="Buscar por Razão Social, CNPJ, Sócio ou CNAE..." autocomplete="off">
+          </div>
+          <button id="refreshCnpjModalBtn" class="btn btn-secondary icon-only" title="Recarregar Dados">
+            <i class="ri-refresh-line"></i>
+          </button>
+          <a href="admin.html#cnpj-section" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.45rem 0.85rem; text-decoration: none;">
+            <i class="ri-dashboard-fill"></i> Gerenciar no Admin
+          </a>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+          <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 0.75rem; text-align: center;">
+            <span style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Total de CNPJs</span>
+            <h3 id="modalKpiTotalCnpjs" style="margin: 0.25rem 0 0; color: #38bdf8; font-size: 1.4rem;">0</h3>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 0.75rem; text-align: center;">
+            <span style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Vinculados a Leads</span>
+            <h3 id="modalKpiMatchedLeads" style="margin: 0.25rem 0 0; color: #34d399; font-size: 1.4rem;">0</h3>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 0.75rem; text-align: center;">
+            <span style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Suspeitas de Fantasma</span>
+            <h3 id="modalKpiGhostSuspects" style="margin: 0.25rem 0 0; color: #fbbf24; font-size: 1.4rem;">0</h3>
+          </div>
+        </div>
+
+        <!-- LISTA DE CARDS DE CNPJS -->
+        <div id="cnpjModalCardsContainer" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div style="text-align: center; padding: 2rem; color: #94a3b8;">
+            <i class="ri-loader-4-line ri-spin" style="font-size: 2rem;"></i>
+            <p>Carregando CNPJs da Receita Federal...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST DE NOTIFICAÇÃO -->
   <div class="toast" id="toast">
     <i class="toast-icon ri-checkbox-circle-fill"></i>
@@ -816,14 +893,15 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
   <!-- Base de Dados Padrão (Compatível com file:// e localhost sem bloqueio CORS) -->
-  <script src="data/default-places.js?v=2.3"></script>
+  <script src="data/default-places.js?v=2.6"></script>
+  <script src="data/cnpj-leads.js?v=2.6"></script>
 
   <!-- Supabase Cloud Backend & Sincronização em Tempo Real -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=2.3"></script>
-  <script src="supabase-client.js?v=2.3"></script>
+  <script src="supabase-config.js?v=2.6"></script>
+  <script src="supabase-client.js?v=2.6"></script>
 
   <!-- App Core JS -->
-  <script src="app.js?v=2.5"></script>
+  <script src="app.js?v=2.6"></script>
 </body>
 </html>
