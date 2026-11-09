@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2.5">
 
   <!-- Auth Guard: Exige autenticação antes de abrir o mapa -->
   <script>
@@ -56,7 +56,6 @@
           </div>
           <div class="brand-text">
             <h2>CityMap<span>Hub</span></h2>
-            <p>Guia & Mapeamento Urbano</p>
           </div>
         </div>
         <div class="sidebar-header-actions">
@@ -115,7 +114,12 @@
           <span class="cloud-dot offline" id="cloudStatusDot"></span>
           <span class="cloud-status-text" id="cloudStatusText">Modo Local (Offline)</span>
         </div>
-        <button class="cloud-action-link" id="cloudActionBtn">Conectar</button>
+        <div class="cloud-status-actions">
+          <button class="cloud-action-link" id="cloudActionBtn">Conectar</button>
+          <button type="button" class="cloud-action-link cloud-logout-btn" id="cloudLogoutBtn" style="display: none;" title="Encerrar sessão nesta máquina">
+            <i class="ri-logout-box-r-line"></i> Sair
+          </button>
+        </div>
       </div>
 
       <!-- BARRA DE PESQUISA -->
@@ -177,58 +181,101 @@
           </label>
         </div>
 
-        <!-- BOTÃO HERO DE ATIVAÇÃO RÁPIDA: TODOS OS ALVOS DE GIRO RÁPIDO -->
-        <button class="hero-profit-btn active" id="quickHighTurnoverBtn" title="Ativar todos os comércios de giro rápido (Bares, Adegas, Restaurantes, Padarias e Mercados Locais)">
-          <div class="hero-profit-left">
-            <div class="hero-profit-icon">
-              <i class="ri-flashlight-fill"></i>
+        <!-- ACELERADOR HERO: FOCO EM PARCELADOS DE ALTO VALOR -->
+        <div class="hero-strategies-group">
+          <!-- ESTRATÉGIA: PARCELADOS DE ALTO VALOR -->
+          <button class="hero-profit-btn hero-highticket-btn" id="quickHighTicketBtn" title="Filtrar comércios com forte parcelamento e ticket alto (Odonto, Estética, Óticas, Roupas, Auto Centers, Móveis e Celulares)">
+            <div class="hero-profit-left">
+              <div class="hero-profit-icon">
+                <i class="ri-vip-diamond-fill"></i>
+              </div>
+              <div class="hero-profit-text">
+                <strong>💎 Parcelados Alto Valor</strong>
+                <span>Odonto, Estética, Óticas, Moda, Auto & Celulares</span>
+              </div>
             </div>
-            <div class="hero-profit-text">
-              <strong>⚡ Giro Rápido (Todos os Alvos)</strong>
-              <span>Bares, Adegas, Restaurantes, Padarias e Mercados</span>
-            </div>
-          </div>
-          <b class="hero-profit-count" id="count-high-turnover">0</b>
-        </button>
+            <b class="hero-profit-count" id="count-high-ticket">0</b>
+          </button>
+        </div>
 
         <!-- CHIPS DOS SEGMENTOS PRIORITÁRIOS -->
         <div class="commercial-chips" id="commercialSegmentChips">
-          <button class="commercial-chip" data-segment="all" title="Mostrar todos os estabelecimentos sem filtro de segmento">
+          <button class="commercial-chip" data-segment="all" title="Mostrar todos os estabelecimentos sem filtro">
             <i class="ri-apps-line"></i>
             <span>Todos</span>
             <b id="chip-count-all">0</b>
           </button>
-          <button class="commercial-chip chip-cnpj" data-segment="novo_cnpj" title="Mostrar apenas os 1.304 Novos CNPJs abertos recentemente em Franca">
-            <i class="ri-file-text-line" style="color: #38bdf8;"></i>
-            <span>Novos CNPJs</span>
-            <b id="chip-count-novo_cnpj" style="background: rgba(56,189,248,0.2); color: #38bdf8;">0</b>
+          <button class="commercial-chip chip-odonto" data-segment="odonto_estetica" title="Clínicas Odontológicas, Dentistas & Estética">
+            <i class="ri-heart-pulse-fill" style="color: #a78bfa;"></i>
+            <span>Odonto & Estética</span>
+            <b id="chip-count-odonto_estetica">0</b>
           </button>
-          <button class="commercial-chip chip-adega" data-segment="adega" title="Adegas e Distribuidoras de Bebidas">
-            <i class="ri-goblet-fill"></i>
-            <span>Adegas</span>
-            <b id="chip-count-adega">0</b>
+          <button class="commercial-chip chip-otica" data-segment="otica_joia" title="Óticas, Relojoarias & Joalherias">
+            <i class="ri-glasses-fill" style="color: #38bdf8;"></i>
+            <span>Óticas & Joias</span>
+            <b id="chip-count-otica_joia">0</b>
           </button>
-          <button class="commercial-chip chip-bar" data-segment="bar" title="Bares, Pubs, Choperias e Botecos">
-            <i class="ri-beer-fill"></i>
-            <span>Bares</span>
-            <b id="chip-count-bar">0</b>
+          <button class="commercial-chip chip-moda" data-segment="moda_calcados" title="Lojas de Roupas, Boutiques & Calçados">
+            <i class="ri-t-shirt-fill" style="color: #f472b6;"></i>
+            <span>Moda & Calçados</span>
+            <b id="chip-count-moda_calcados">0</b>
           </button>
-          <button class="commercial-chip chip-restaurante" data-segment="restaurante" title="Restaurantes, Pizzarias, Lanchonetes e Marmitarias">
-            <i class="ri-restaurant-2-fill"></i>
+          <button class="commercial-chip chip-auto" data-segment="auto_center" title="Oficinas Mecânicas, Auto Centers, Pneus & Peças">
+            <i class="ri-car-fill" style="color: #fb923c;"></i>
+            <span>Auto Centers</span>
+            <b id="chip-count-auto_center">0</b>
+          </button>
+          <button class="commercial-chip chip-celular" data-segment="celulares_tech" title="Lojas de Celulares, Assistência Técnica & Tech">
+            <i class="ri-smartphone-fill" style="color: #60a5fa;"></i>
+            <span>Celulares & Tech</span>
+            <b id="chip-count-celulares_tech">0</b>
+          </button>
+          <button class="commercial-chip chip-moveis" data-segment="moveis_construcao" title="Móveis Planejados, Colchões & Materiais">
+            <i class="ri-home-gear-fill" style="color: #22d3ee;"></i>
+            <span>Móveis & Casa</span>
+            <b id="chip-count-moveis_construcao">0</b>
+          </button>
+          <button class="commercial-chip chip-acougue" data-segment="acougue_carnes" title="Açougues & Casas de Carnes">
+            <i class="ri-knife-line" style="color: #f87171;"></i>
+            <span>Açougues & Carnes</span>
+            <b id="chip-count-acougue_carnes">0</b>
+          </button>
+          <button class="commercial-chip chip-pet" data-segment="pet_vet" title="Pet Shops & Clínicas Veterinárias">
+            <i class="ri-mental-health-fill" style="color: #34d399;"></i>
+            <span>Pet & Veterinária</span>
+            <b id="chip-count-pet_vet">0</b>
+          </button>
+          <button class="commercial-chip chip-beleza" data-segment="beleza_estetica" title="Salões de Beleza & Barbearias">
+            <i class="ri-scissors-2-fill" style="color: #e879f9;"></i>
+            <span>Salões & Barber</span>
+            <b id="chip-count-beleza_estetica">0</b>
+          </button>
+          <button class="commercial-chip chip-restaurante" data-segment="restaurante" title="Restaurantes, Pizzarias & Lanchonetes">
+            <i class="ri-restaurant-2-fill" style="color: #f87171;"></i>
             <span>Restaurantes</span>
             <b id="chip-count-restaurante">0</b>
           </button>
-          <button class="commercial-chip chip-padaria" data-segment="padaria" title="Padarias, Confeitarias e Cafeterias">
-            <i class="ri-cake-3-fill"></i>
+          <button class="commercial-chip chip-bar" data-segment="bar" title="Bares, Pubs & Choperias">
+            <i class="ri-beer-fill" style="color: #fbbf24;"></i>
+            <span>Bares</span>
+            <b id="chip-count-bar">0</b>
+          </button>
+          <button class="commercial-chip chip-adega" data-segment="adega" title="Adegas & Distribuidoras de Bebidas">
+            <i class="ri-goblet-fill" style="color: #c084fc;"></i>
+            <span>Adegas</span>
+            <b id="chip-count-adega">0</b>
+          </button>
+          <button class="commercial-chip chip-padaria" data-segment="padaria" title="Padarias, Confeitarias & Cafeterias">
+            <i class="ri-cake-3-fill" style="color: #fde047;"></i>
             <span>Padarias</span>
             <b id="chip-count-padaria">0</b>
           </button>
-          <button class="commercial-chip chip-mercado" data-segment="mercado_bairro" title="Mercados de Bairro, Mercearias, Hortifrutis e Mini-Boxes (Sem Redes)">
-            <i class="ri-shopping-cart-2-fill"></i>
+          <button class="commercial-chip chip-mercado" data-segment="mercado_bairro" title="Mercados de Bairro & Mercearias">
+            <i class="ri-shopping-cart-2-fill" style="color: #34d399;"></i>
             <span>Mercados Bairro</span>
             <b id="chip-count-mercado_bairro">0</b>
           </button>
-          <button class="commercial-chip chip-outro" data-segment="outro" title="Outros estabelecimentos (Lojas, Serviços e Redes)">
+          <button class="commercial-chip chip-outro" data-segment="outro" title="Outros estabelecimentos">
             <i class="ri-more-fill"></i>
             <span>Outros</span>
             <b id="chip-count-outro">0</b>
@@ -371,7 +418,8 @@
             <button id="exportDefaultPlacesBtn" class="text-warning" style="color: #facc15;"><i class="ri-git-branch-line"></i> Baixar default-places.json (para Git)</button>
             <button id="exportDataBtn"><i class="ri-download-2-line"></i> Exportar Backup com Data (JSON)</button>
             <button id="triggerImportBtn"><i class="ri-upload-2-line"></i> Importar Backup (JSON)</button>
-            <button id="resetDataBtn" class="text-danger"><i class="ri-restart-line"></i> Restaurar Padrões</button>
+            <button id="resetDataBtn" class="text-warning"><i class="ri-restart-line"></i> Restaurar Padrões</button>
+            <button id="clearAllLeadsBtn" class="text-danger" style="color: #ef4444;"><i class="ri-delete-bin-2-line"></i> Zerar Todos os Leads</button>
             <input type="file" id="importFileInput" accept=".json" style="display: none;">
             <input type="file" id="importApifyFileInput" accept=".xlsx, .xls, .csv" style="display: none;">
           </div>
@@ -408,6 +456,14 @@
             <button class="map-theme-btn" data-tiles="satellite" title="Satélite"><i class="ri-earth-fill"></i></button>
           </div>
         </div>
+      </div>
+
+      <!-- BARRA FIXA MOBILE INFERIOR DENTRO DA SIDEBAR: VOLTAR AO MAPA -->
+      <div class="mobile-sidebar-footer mobile-only">
+        <button type="button" class="btn-mobile-show-map" id="mobileCloseSidebarBottomBtn">
+          <i class="ri-map-2-line"></i>
+          <span>Ver no Mapa (<b id="mobilePlacesCountFooter">0</b>)</span>
+        </button>
       </div>
     </aside>
 
@@ -760,14 +816,14 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
   <!-- Base de Dados Padrão (Compatível com file:// e localhost sem bloqueio CORS) -->
-  <script src="data/default-places.js"></script>
+  <script src="data/default-places.js?v=2.3"></script>
 
   <!-- Supabase Cloud Backend & Sincronização em Tempo Real -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js"></script>
-  <script src="supabase-client.js"></script>
+  <script src="supabase-config.js?v=2.3"></script>
+  <script src="supabase-client.js?v=2.3"></script>
 
   <!-- App Core JS -->
-  <script src="app.js"></script>
+  <script src="app.js?v=2.5"></script>
 </body>
 </html>

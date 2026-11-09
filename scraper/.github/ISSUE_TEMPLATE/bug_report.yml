@@ -1,0 +1,27 @@
+name: Bug report
+description: Report something in the kit that fails or behaves wrongly.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or prompt
+      description: The exact command you ran, or what you asked the agent, and the full error output.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, chip (Intel or Apple Silicon), Python version, how the engine runs (scripts/engine.py or Docker), and the browser (python3 scripts/engine.py status prints it).
+      placeholder: macOS 15, Apple Silicon, Python 3.12, engine.py with Google Chrome
+    validations:
+      required: true

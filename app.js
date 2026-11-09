@@ -4,7 +4,15 @@
  */
 
 // --- ESTADO GLOBAL DA APLICAÇÃO ---
-const STORAGE_KEY = 'citymap_places_data';
+const STORAGE_KEY = 'citymap_places_data_v3';
+
+// Limpeza automática de dados residuais antigos em cache
+if (localStorage.getItem('citymap_places_data')) {
+  localStorage.removeItem('citymap_places_data');
+}
+if (localStorage.getItem('citymap_places_data_v2')) {
+  localStorage.removeItem('citymap_places_data_v2');
+}
 
 const AppState = {
   places: [],
@@ -28,37 +36,77 @@ const AppState = {
   map: null,
   markersGroup: null,
   tileLayers: {},
-  commercialSegmentFilter: 'high_turnover', // Padrão: Modo Giro Rápido ativado (foco nos alvos comerciais prioritários)
+  commercialSegmentFilter: 'all', // Padrão: Todos os estabelecimentos
   hideChains: true, // Ocultar grandes redes de supermercados por padrão para focar em comércios independentes
   segmentIcons: {
     all: 'ri-apps-line',
     high_turnover: 'ri-flashlight-fill',
+    high_ticket: 'ri-vip-diamond-fill',
     novo_cnpj: 'ri-file-text-line',
+    odonto_estetica: 'ri-heart-pulse-fill',
+    otica_joia: 'ri-glasses-fill',
+    moda_calcados: 'ri-t-shirt-fill',
+    auto_center: 'ri-car-fill',
+    celulares_tech: 'ri-smartphone-fill',
+    moveis_construcao: 'ri-home-gear-fill',
+    acougue_carnes: 'ri-knife-line',
+    pet_vet: 'ri-mental-health-fill',
+    beleza_estetica: 'ri-scissors-2-fill',
+    farmacia_saude: 'ri-capsule-fill',
+    lava_jato: 'ri-car-washing-fill',
     adega: 'ri-goblet-fill',
     bar: 'ri-beer-fill',
     restaurante: 'ri-restaurant-2-fill',
     padaria: 'ri-cake-3-fill',
     mercado_bairro: 'ri-shopping-cart-2-fill',
+    hortifruti_sacolao: 'ri-apple-fill',
     outro: 'ri-store-2-line'
   },
   segmentNames: {
     all: 'Todos os Estabelecimentos',
-    high_turnover: '⚡ Giro Rápido (Prioritários)',
+    high_turnover: '⚡ Alto Volume de Cartões',
+    high_ticket: '💎 Parcelados de Alto Valor Agregado',
     novo_cnpj: '🆕 Novos CNPJs (Recém Abertos)',
+    odonto_estetica: 'Odontologia & Estética VIP',
+    otica_joia: 'Óticas, Relojoarias & Joias',
+    moda_calcados: 'Moda, Roupas & Calçados',
+    auto_center: 'Auto Centers, Mecânicas & Pneus',
+    celulares_tech: 'Celulares & Assistência Técnica',
+    moveis_construcao: 'Móveis Planejados & Construção',
+    acougue_carnes: 'Açougues & Casas de Carnes',
+    pet_vet: 'Pet Shops & Veterinárias',
+    beleza_estetica: 'Salões de Beleza & Barbearias',
+    farmacia_saude: 'Farmácias Independentes',
+    lava_jato: 'Lava Jatos & Estética Automotiva',
     adega: 'Adegas & Bebidas',
     bar: 'Bares & Pubs',
-    restaurante: 'Restaurantes & Lanches',
+    restaurante: 'Restaurantes & Lanchonetes',
     padaria: 'Padarias & Cafés',
     mercado_bairro: 'Mercados de Bairro',
-    outro: 'Outros Comércios'
+    hortifruti_sacolao: 'Hortifrutis & Sacolões',
+    outro: 'Outros Estabelecimentos'
   },
   segmentColors: {
     novo_cnpj: '#38bdf8',
+    high_ticket: '#38bdf8',
+    high_turnover: '#f59e0b',
+    odonto_estetica: '#7c3aed',
+    otica_joia: '#0284c7',
+    moda_calcados: '#db2777',
+    auto_center: '#ea580c',
+    celulares_tech: '#2563eb',
+    moveis_construcao: '#0891b2',
+    acougue_carnes: '#b91c1c',
+    pet_vet: '#059669',
+    beleza_estetica: '#c026d3',
+    farmacia_saude: '#10b981',
+    lava_jato: '#0ea5e9',
     adega: '#9333ea',
     bar: '#f59e0b',
     restaurante: '#ef4444',
     padaria: '#eab308',
     mercado_bairro: '#10b981',
+    hortifruti_sacolao: '#16a34a',
     outro: '#64748b'
   },
   categoryIcons: {
@@ -149,26 +197,62 @@ function initMap() {
 // --- ENRIQUECIMENTO E CLASSIFICAÇÃO COMERCIAL DOS LOCAIS ---
 function enrichPlace(p) {
   if (!p) return p;
-  if (!p.commercialSegment || p.isHighTurnover === undefined) {
-    const chainRegex = /savegnago|tonin|atacad[aã]o|carrefour|p[aã]o de a[cç][uú]car|assai|assaí|dia%|tenda|ti[aã]ozinho|big compra|serv[\s-]?bem|irm[aã]os patroc[ií]nio|sebasti[aã]o lopes|supermercado lider/i;
+  if (!p.commercialSegment || p.commercialSegment === 'outro' || p.isHighTurnover === undefined) {
+    const chainRegex = /savegnago|tonin|atacad[aã]o|carrefour|p[aã]o de a[cç][uú]car|assai|assaí|dia%|tenda|ti[aã]ozinho|big compra|serv[\s-]?bem|irm[aã]os patroc[ií]nio|sebasti[aã]o lopes|supermercado lider|mcdonald|burger king|subway|habib|chilli beans|cacau show|c&a|renner|riachuelo|ortobom|drogasil|droga raia|pague menos/i;
     p.isChain = chainRegex.test(p.name || '');
 
     const fullText = ((p.subCategory || '') + ' ' + (p.name || '') + ' ' + (p.description || '')).toLowerCase();
-    if (/adega|bebida|distribuidora de bebida|dep[oó]sito de bebida/.test(fullText)) {
+
+    // 0. Estética Automotiva & Lava Jato (Antes de estética humana)
+    if (/automotiv|veicular|lava[\s-]?jato|lava[\s-]?r[aá]pido|est[eé]tica automotiva|polimento|detalhamento automotivo/.test(fullText)) {
+      p.commercialSegment = 'lava_jato';
+    // 1. Parcelados de Alto Valor
+    } else if (/odonto|dentist|implante|ortodont|clareamento|est[eé]tica|harmoniza[cç]|botox|laser|cirurgia pl[aá]stica|dermatolog/.test(fullText)) {
+      p.commercialSegment = 'odonto_estetica';
+    } else if (/[oó]tica|[oó]culos|lente|relojoaria|joalheria|joia|semijoia|alian[cç]a/.test(fullText)) {
+      p.commercialSegment = 'otica_joia';
+    } else if (/roupa|moda|boutique|confec[cç]|vestu[aá]rio|cal[cç]ado|sapato|tenis|lingerie/.test(fullText)) {
+      p.commercialSegment = 'moda_calcados';
+    } else if (/oficina mec[aâ]nica|auto[\s-]?center|pneu|alinhamento|auto[\s-]?pe[cç]as|moto[\s-]?pe[cç]as|funilaria/.test(fullText)) {
+      p.commercialSegment = 'auto_center';
+    } else if (/celular|smartphone|iphone|assist[eê]ncia t[eé]cnica|computador|inform[aá]tica/.test(fullText)) {
+      p.commercialSegment = 'celulares_tech';
+    } else if (/m[oó]veis|planejado|colch[aã]o|material para constru[cç]|tinta|ilumina[cç]/.test(fullText)) {
+      p.commercialSegment = 'moveis_construcao';
+    // 2. Alto Giro & Volume Recorrente de Cartões
+    } else if (/a[cç]ougue|casa de carnes|carnes|frigor[ií]fico/.test(fullText)) {
+      p.commercialSegment = 'acougue_carnes';
+    } else if (/hortifruti|sacol[aã]o|varej[aã]o|frutas|verduras/.test(fullText)) {
+      p.commercialSegment = 'hortifruti_sacolao';
+    } else if (/veterin[aá]ri|hospital veterin[aá]ri|pet[\s-]?shop|casa de ra[cç]|banho e tosa/.test(fullText)) {
+      p.commercialSegment = 'pet_vet';
+    } else if (/sal[aã]o de beleza|cabeleireir|barbearia|barber|manicure|sobrancelha/.test(fullText)) {
+      p.commercialSegment = 'beleza_estetica';
+    } else if (/farm[aá]cia|drogaria|manipula[cç]/.test(fullText) && !p.isChain) {
+      p.commercialSegment = 'farmacia_saude';
+    } else if (/lava[\s-]?jato|lava[\s-]?r[aá]pido|est[eé]tica automotiva/.test(fullText)) {
+      p.commercialSegment = 'lava_jato';
+    // 3. Alimentação & Bebidas Tradicionais
+    } else if (/adega|bebida|distribuidora de bebida|dep[oó]sito de bebida/.test(fullText)) {
       p.commercialSegment = 'adega';
-    } else if (/bar|boteco|pub|choperia|espet|cervej/.test(fullText)) {
+    } else if (/bar|boteco|pub|choperia|chopp|cervej|espet/.test(fullText)) {
       p.commercialSegment = 'bar';
-    } else if (/padaria|panific|confeitaria|bolo|caf[eé]/.test(fullText)) {
+    } else if (/padaria|panific|confeitaria|bolo|caf[eé]|p[aã]o/.test(fullText)) {
       p.commercialSegment = 'padaria';
-    } else if (/restaurante|pizz|lanche|hamburg|churrasc|pastel|comida|marmita|a[cç]ougue|gastronomia/.test(fullText)) {
-      p.commercialSegment = 'restaurante';
-    } else if (/supermercado|mini[\s-]?mercado|mini[\s-]?box|mercearia|hortifruti|varej[aã]o|emp[oó]rio|sacol[aã]o|armaz[eé]m/.test(fullText) && !p.isChain && !/roupa|confec|im[oó]ve|estamparia|pet|brech|studios|mentoria|digital|auto pe[cç]as/.test(fullText)) {
+    } else if (/supermercado|mini[\s-]?mercado|mercearia|emp[oó]rio|armaz[eé]m/.test(fullText)) {
       p.commercialSegment = 'mercado_bairro';
+    } else if (/restaurante|pizz|lanche|lanchonete|hamburg|churrasc|pastel|comida|marmita|gastronomia|sushi|japones|a[cç]a[ií]|sorvete|rotisseria/.test(fullText)) {
+      p.commercialSegment = 'restaurante';
     } else {
       p.commercialSegment = 'outro';
     }
-    p.isHighTurnover = (p.commercialSegment !== 'outro');
   }
+
+  // Avaliação garantida de alto ticket para TODOS os estabelecimentos da base
+  const highTicketSegments = ['odonto_estetica', 'otica_joia', 'moda_calcados', 'auto_center', 'celulares_tech', 'moveis_construcao'];
+  p.isHighTicket = highTicketSegments.includes(p.commercialSegment);
+  p.isHighTurnover = (p.commercialSegment !== 'outro' && !p.isChain);
+
   return p;
 }
 
@@ -298,9 +382,11 @@ function filterPlaces() {
       return false;
     }
 
-    // 0.1 Filtro de Segmento Comercial / Giro Rápido / Novos CNPJs
+    // 0.1 Filtro de Segmento Comercial / Giro Rápido / Novos CNPJs / Parcelados Alto Valor
     if (segmentFilter === 'high_turnover') {
       if (!place.isHighTurnover) return false;
+    } else if (segmentFilter === 'high_ticket') {
+      if (!place.isHighTicket) return false;
     } else if (segmentFilter === 'novo_cnpj') {
       if (!place.cnpj && (!place.tags || !place.tags.includes('Novo CNPJ'))) return false;
     } else if (segmentFilter !== 'all') {
@@ -381,7 +467,7 @@ function filterPlaces() {
 
 function updateCategoryCounts() {
   const counts = { alimentacao: 0, comercio: 0, saude: 0, lazer: 0, servicos: 0 };
-  const segCounts = { all: 0, high_turnover: 0, novo_cnpj: 0, adega: 0, bar: 0, restaurante: 0, padaria: 0, mercado_bairro: 0, outro: 0 };
+  const segCounts = { all: 0, high_turnover: 0, high_ticket: 0, novo_cnpj: 0, outro: 0 };
   let leadCount = 0;
   let negotiatingCount = 0;
   let followUpCount = 0;
@@ -400,20 +486,25 @@ function updateCategoryCounts() {
     if (!AppState.hideChains || !p.isChain) {
       segCounts.all++;
       if (p.isHighTurnover) segCounts.high_turnover++;
+      if (p.isHighTicket) segCounts.high_ticket++;
       if (p.cnpj || (p.tags && p.tags.includes('Novo CNPJ'))) segCounts.novo_cnpj++;
       const seg = p.commercialSegment || 'outro';
-      if (segCounts[seg] !== undefined) segCounts[seg]++;
+      segCounts[seg] = (segCounts[seg] || 0) + 1;
     }
   });
 
   // Atualizar badges do Foco Comercial
   const elHt = document.getElementById('count-high-turnover');
   if (elHt) elHt.textContent = segCounts.high_turnover;
+  const elHticket = document.getElementById('count-high-ticket');
+  if (elHticket) elHticket.textContent = segCounts.high_ticket;
+
   const elChipAll = document.getElementById('chip-count-all');
   if (elChipAll) elChipAll.textContent = segCounts.all;
-  ['novo_cnpj', 'adega', 'bar', 'restaurante', 'padaria', 'mercado_bairro', 'outro'].forEach(s => {
+
+  Object.keys(segCounts).forEach(s => {
     const elChip = document.getElementById(`chip-count-${s}`);
-    if (elChip) elChip.textContent = segCounts[s] || 0;
+    if (elChip) elChip.textContent = segCounts[s];
   });
 
   // Atualizar badges CRM do funil
@@ -477,6 +568,8 @@ function updateCategoryCounts() {
   document.getElementById('placesCountText').textContent = `${AppState.filteredPlaces.length} locais encontrados`;
   const mobileCount = document.getElementById('mobilePlacesCount');
   if (mobileCount) mobileCount.textContent = AppState.filteredPlaces.length;
+  const mobileCountFooter = document.getElementById('mobilePlacesCountFooter');
+  if (mobileCountFooter) mobileCountFooter.textContent = AppState.filteredPlaces.length;
 }
 
 function renderSubCategoryOptions() {
@@ -639,8 +732,6 @@ function renderPlacesList() {
     let turnoverBadge = '';
     if (place.isChain) {
       turnoverBadge = `<span class="chain-badge" title="Grande Rede Corporativa de Supermercados"><i class="ri-store-2-line"></i> Grande Rede</span>`;
-    } else if (place.isHighTurnover) {
-      turnoverBadge = `<span class="turnover-badge" title="Comércio de Alto Giro & Lucratividade Rápida"><i class="ri-flashlight-fill"></i> Giro Rápido</span>`;
     } else if (seg === 'mercado_bairro') {
       turnoverBadge = `<span class="local-independent-badge" title="Mercado Independente de Bairro"><i class="ri-checkbox-circle-line"></i> Independente</span>`;
     }
@@ -680,7 +771,7 @@ function renderMapMarkers() {
     const openStatus = getPlaceOpenStatus(place, now);
     const isClosed = !openStatus.isOpen;
     const followUp = getFollowUpStatus(place);
-    const turnoverPinClass = place.isHighTurnover ? 'pin-high-turnover' : '';
+    const turnoverPinClass = place.isHighTicket ? 'pin-high-ticket' : (place.isHighTurnover ? 'pin-high-turnover' : '');
     
     // Indicador de estágio no pin
     let stageBadgeHtml = '';
@@ -762,7 +853,6 @@ window.selectPlace = function(placeId, zoomIn = false) {
         <span class="drawer-cat-badge" style="background: ${!openStatus.isOpen ? '#475569' : (AppState.segmentColors[place.commercialSegment] || 'var(--color-primary)')}">
           <i class="${AppState.segmentIcons[place.commercialSegment] || 'ri-store-2-line'}"></i> ${AppState.segmentNames[place.commercialSegment] || catName}
         </span>
-        ${place.isHighTurnover ? '<span class="turnover-badge" style="font-size:0.7rem; padding:2px 8px;"><i class="ri-flashlight-fill"></i> Giro Rápido</span>' : ''}
         ${place.isChain ? '<span class="chain-badge" style="font-size:0.7rem; padding:2px 8px;"><i class="ri-store-2-line"></i> Grande Rede</span>' : (place.commercialSegment === 'mercado_bairro' ? '<span class="local-independent-badge" style="font-size:0.7rem; padding:2px 8px;"><i class="ri-checkbox-circle-line"></i> Mercado Independente</span>' : '')}
         ${place.rating ? `<span class="drawer-rating"><i class="ri-star-fill"></i> ${place.rating}</span>` : ''}
       </div>
@@ -827,6 +917,18 @@ window.selectPlace = function(placeId, zoomIn = false) {
 
       <!-- BLOCO CRM: FUNIL DE VENDAS, RETORNO & MAQUININHA -->
       <div class="drawer-crm-card">
+        <!-- VÍNCULO DE CARTEIRA / HIERARQUIA COMERCIAL -->
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 0.76rem;">
+            <i class="ri-user-star-line" style="color: #38bdf8; font-size: 0.9rem;"></i>
+            <span style="color: var(--text-muted);">Carteira:</span>
+            <strong style="color: ${place.assignedTo ? '#10b981' : '#f59e0b'};">
+              ${place.assignedTo ? (CloudSync.currentUser && place.assignedTo === CloudSync.currentUser.id ? '👤 Sua Carteira (Agente)' : '👤 Agente Designado') : '🌐 Pool Geral (Sem Atribuição)'}
+            </strong>
+          </div>
+          ${place.assignedAt ? `<span style="font-size: 0.68rem; color: #64748b;"><i class="ri-history-line"></i> ${new Date(place.assignedAt).toLocaleDateString('pt-BR')}</span>` : ''}
+        </div>
+
         <div class="crm-card-header">
           <span class="crm-badge stage-${stage}">
             <i class="${stage === 'closed' ? 'ri-checkbox-circle-fill' : stage === 'negotiating' ? 'ri-time-fill' : stage === 'rejected' ? 'ri-close-circle-fill' : 'ri-user-line'}"></i>
@@ -1311,6 +1413,13 @@ function setupEventListeners() {
     });
   }
 
+  const closeMobileBottomBtn = document.getElementById('mobileCloseSidebarBottomBtn');
+  if (closeMobileBottomBtn) {
+    closeMobileBottomBtn.addEventListener('click', () => {
+      document.getElementById('sidebar').classList.remove('mobile-open');
+    });
+  }
+
   // Fechar Drawer
   document.getElementById('closeDrawerBtn').addEventListener('click', () => {
     document.getElementById('placeDetailDrawer').classList.remove('open');
@@ -1452,15 +1561,25 @@ function setupEventListeners() {
     });
   });
 
-  // Foco Comercial: Botão Hero de Giro Rápido
-  const quickProfitBtn = document.getElementById('quickHighTurnoverBtn');
-  if (quickProfitBtn) {
-    quickProfitBtn.addEventListener('click', () => {
-      AppState.commercialSegmentFilter = 'high_turnover';
-      quickProfitBtn.classList.add('active');
-      document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(c => c.classList.remove('active'));
-      updateUI();
-      showToast('⚡ Exibindo todos os alvos de giro rápido e alta lucratividade!');
+  // Foco Comercial: Botão Hero de Parcelados Alto Valor
+  const quickHighTicketBtn = document.getElementById('quickHighTicketBtn');
+
+  if (quickHighTicketBtn) {
+    quickHighTicketBtn.addEventListener('click', () => {
+      if (AppState.commercialSegmentFilter === 'high_ticket') {
+        AppState.commercialSegmentFilter = 'all';
+        quickHighTicketBtn.classList.remove('active');
+        const chipAll = document.querySelector('#commercialSegmentChips .commercial-chip[data-segment="all"]');
+        if (chipAll) chipAll.classList.add('active');
+        updateUI();
+        showToast('Exibindo todos os estabelecimentos.');
+      } else {
+        AppState.commercialSegmentFilter = 'high_ticket';
+        quickHighTicketBtn.classList.add('active');
+        document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(c => c.classList.remove('active'));
+        updateUI();
+        showToast('💎 Exibindo alvos de parcelamento e alto ticket!');
+      }
     });
   }
 
@@ -1472,8 +1591,8 @@ function setupEventListeners() {
       const segment = chip.dataset.segment;
       AppState.commercialSegmentFilter = segment;
       
-      if (quickProfitBtn) {
-        quickProfitBtn.classList.toggle('active', segment === 'high_turnover');
+      if (quickHighTicketBtn) {
+        quickHighTicketBtn.classList.toggle('active', segment === 'high_ticket');
       }
 
       updateUI();
@@ -1800,6 +1919,18 @@ function setupEventListeners() {
       showToast('Dados restaurados com sucesso!');
     }
   });
+
+  // Zerar Todos os Leads (Começar do zero)
+  document.getElementById('clearAllLeadsBtn')?.addEventListener('click', () => {
+    if (confirm('ATENÇÃO: Deseja apagar TODOS os leads do sistema e começar do zero?')) {
+      localStorage.removeItem(STORAGE_KEY);
+      AppState.places = [];
+      AppState.filteredPlaces = [];
+      savePlaces();
+      updateUI();
+      showToast('🧹 Base zerada com sucesso!');
+    }
+  });
 }
 
 // --- SUPORTE COMPLETO A ROLAGEM HORIZONTAL (MOUSE WHEEL, DRAG & TOUCH) ---
@@ -1927,25 +2058,36 @@ function parseApifyRows(rows) {
     const hours = row['openingHours/0/hours'] || row['openingHours'] || '';
 
     // 7. Avaliação e Fotos
-    const rating = row['totalScore'] ? parseFloat(row['totalScore']).toFixed(1) : (row['rating'] || '5.0');
+    const rating = row['totalScore'] ? parseFloat(row['totalScore']).toFixed(1) : (row['rating'] || row['review_rating'] || '5.0');
     const photo = row['imageUrl'] || row['image'] || row['thumbnail'] || '';
 
-    // 8. Descrição e Tags
+    // 8. Descrição, Emails, Redes e Tags (Compatível com Apify e Google Maps Scraper Kit)
     const website = row['website'] ? `Website: ${row['website']}` : '';
-    const reviews = row['reviewsCount'] ? `${row['reviewsCount']} avaliações no Google` : '';
-    const description = [rawCategory, reviews, website].filter(Boolean).join(' • ');
+    const reviews = (row['reviewsCount'] || row['review_count']) ? `${row['reviewsCount'] || row['review_count']} avaliações` : '';
+    const emails = row['emails'] || row['email'] || '';
+    const insta = row['instagram'] ? `Insta: ${row['instagram']}` : '';
+    const tech = row['intent_score'] ? `Score: ${row['intent_score']}` : '';
+
+    const descParts = [rawCategory, reviews, website, emails ? `Email: ${emails}` : '', insta, tech].filter(Boolean);
+    const description = descParts.join(' • ');
 
     const tags = [];
     if (rawCategory) tags.push(rawCategory);
     if (row['city']) tags.push(row['city']);
     if (row['neighborhood']) tags.push(row['neighborhood']);
+    if (emails) tags.push('Com Email');
+    if (row['instagram']) tags.push('Com Instagram');
+    if (row['intent_score'] && parseInt(row['intent_score']) > 50) tags.push('Anuncia no Meta/Google');
 
     const cardMachine = row['cardMachine'] || row['maquininha'] || row['pos'] || '';
     const visited = row['visited'] === true || row['visited'] === 'true' || row['visitado'] === 'sim' || row['visitado'] === true;
-    const crmNotes = row['crmNotes'] || row['notas'] || row['observacoes'] || '';
+    let crmNotes = row['crmNotes'] || row['notas'] || row['observacoes'] || '';
+    if (emails && !crmNotes.includes(emails)) {
+      crmNotes = `Email: ${emails}${crmNotes ? ' | ' + crmNotes : ''}`;
+    }
 
     places.push({
-      id: 'apify-' + (row['id'] || Date.now() + '-' + idx),
+      id: 'gmap-' + (row['place_id'] || row['id'] || Date.now() + '-' + idx),
       name: String(name).trim(),
       category,
       subCategory,
@@ -2650,11 +2792,20 @@ function setupCloudSyncIntegration() {
       if (userProfileEmail) { userProfileEmail.textContent = displayEmail; }
 
       const isAdmin = CloudSync.isAdmin ? CloudSync.isAdmin(user) : false;
+      const isSupervisor = CloudSync.isSupervisor ? CloudSync.isSupervisor(user) : false;
       const userProfileRoleEl = document.getElementById('userProfileRole');
       if (userProfileRoleEl) {
-        userProfileRoleEl.textContent = isAdmin ? '👑 Administrador Master' : 'Corretor / Vendedor';
-        userProfileRoleEl.style.color = isAdmin ? '#fbbf24' : 'var(--text-muted)';
-        userProfileRoleEl.style.fontWeight = isAdmin ? '700' : '500';
+        if (isAdmin) {
+          userProfileRoleEl.textContent = '👑 Administrador Master';
+          userProfileRoleEl.style.color = '#fbbf24';
+        } else if (isSupervisor) {
+          userProfileRoleEl.textContent = '👔 Supervisor de Equipe';
+          userProfileRoleEl.style.color = '#38bdf8';
+        } else {
+          userProfileRoleEl.textContent = '👤 Agente Comercial';
+          userProfileRoleEl.style.color = '#10b981';
+        }
+        userProfileRoleEl.style.fontWeight = '700';
       }
       if (openCloudConfigBtn) openCloudConfigBtn.style.display = isAdmin ? 'flex' : 'none';
       if (syncToCloudBtn) syncToCloudBtn.style.display = isAdmin ? 'flex' : 'none';
@@ -2663,6 +2814,11 @@ function setupCloudSyncIntegration() {
       const navAdminPanelBtn = document.getElementById('navAdminPanelBtn');
       if (headerAdminPanelBtn) headerAdminPanelBtn.style.display = isAdmin ? 'inline-flex' : 'none';
       if (navAdminPanelBtn) navAdminPanelBtn.style.display = isAdmin ? 'flex' : 'none';
+
+      const cloudLogoutBtnEl = document.getElementById('cloudLogoutBtn');
+      if (cloudLogoutBtnEl) cloudLogoutBtnEl.style.display = 'inline-flex';
+      const quickLogoutHeaderBtnEl = document.getElementById('quickLogoutHeaderBtn');
+      if (quickLogoutHeaderBtnEl) quickLogoutHeaderBtnEl.style.display = 'inline-flex';
     } else {
       if (cloudStatusDot) { cloudStatusDot.className = 'cloud-dot ready'; }
       if (cloudStatusText) { cloudStatusText.textContent = 'Nuvem Pronta (Faça Login)'; }
@@ -2674,6 +2830,11 @@ function setupCloudSyncIntegration() {
       const navAdminPanelBtn = document.getElementById('navAdminPanelBtn');
       if (headerAdminPanelBtn) headerAdminPanelBtn.style.display = 'none';
       if (navAdminPanelBtn) navAdminPanelBtn.style.display = 'none';
+
+      const cloudLogoutBtnEl = document.getElementById('cloudLogoutBtn');
+      if (cloudLogoutBtnEl) cloudLogoutBtnEl.style.display = 'none';
+      const quickLogoutHeaderBtnEl = document.getElementById('quickLogoutHeaderBtn');
+      if (quickLogoutHeaderBtnEl) quickLogoutHeaderBtnEl.style.display = 'none';
     }
   }
 
@@ -2869,23 +3030,28 @@ function setupCloudSyncIntegration() {
     });
   }
 
-  // Logout Handler
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      try {
-        await CloudSync.logout();
-        if (userProfileDropdown) userProfileDropdown.classList.remove('open');
-        showToast('Desconectado com sucesso.');
-        updateStatusUI(null);
-        setTimeout(() => {
-          window.location.href = 'login.html';
-        }, 400);
-      } catch (err) {
-        console.error('Erro ao sair:', err);
+  // Logout Handlers (Múltiplos pontos de saída rápida)
+  async function performLogout() {
+    try {
+      await CloudSync.logout();
+      localStorage.removeItem('citymap_places_data_v3');
+      if (userProfileDropdown) userProfileDropdown.classList.remove('open');
+      showToast('Desconectado com sucesso.');
+      updateStatusUI(null);
+      setTimeout(() => {
         window.location.href = 'login.html';
-      }
-    });
+      }, 300);
+    } catch (err) {
+      console.error('Erro ao sair:', err);
+      window.location.href = 'login.html';
+    }
   }
+
+  if (logoutBtn) logoutBtn.addEventListener('click', performLogout);
+  const cloudLogoutBtn = document.getElementById('cloudLogoutBtn');
+  if (cloudLogoutBtn) cloudLogoutBtn.addEventListener('click', performLogout);
+  const quickLogoutHeaderBtn = document.getElementById('quickLogoutHeaderBtn');
+  if (quickLogoutHeaderBtn) quickLogoutHeaderBtn.addEventListener('click', performLogout);
 
   // Sync to Cloud (Bulk Upload)
   async function syncToCloud() {
@@ -2919,55 +3085,33 @@ function setupCloudSyncIntegration() {
     syncToCloudBtn.addEventListener('click', syncToCloud);
   }
 
-  // Sync from Cloud (Fetch All)
+  // Sync from Cloud (Fetch Leads filtrados por RBAC)
   async function syncFromCloud(showFeedback = true) {
     if (!CloudSync.currentUser && !CloudSync.isConfigured) return;
 
     if (showFeedback) {
       if (userProfileDropdown) userProfileDropdown.classList.remove('open');
       if (cloudStatusDot) cloudStatusDot.className = 'cloud-dot syncing';
-      showToast('Buscando atualizações na nuvem...');
+      showToast('Buscando carteira de leads na nuvem...');
     }
 
     try {
       const cloudLeads = await CloudSync.fetchAllLeads();
-      if (cloudLeads && cloudLeads.length > 0) {
-        const placesMap = new Map(AppState.places.map(p => [p.id, p]));
-        
-        let newCount = 0;
-        let updatedCount = 0;
-
-        cloudLeads.forEach(cl => {
-          if (placesMap.has(cl.id)) {
-            const current = placesMap.get(cl.id);
-            // Atualiza se houver dados novos
-            placesMap.set(cl.id, {
-              ...current,
-              ...cl,
-              visited: cl.visited !== undefined ? cl.visited : current.visited,
-              crmStage: cl.crmStage || current.crmStage,
-              cardMachine: cl.cardMachine || current.cardMachine,
-              crmNotes: cl.crmNotes || current.crmNotes,
-              followUpDate: cl.followUpDate || current.followUpDate,
-              followUpTime: cl.followUpTime || current.followUpTime,
-              followUpNotes: cl.followUpNotes || current.followUpNotes
-            });
-            updatedCount++;
-          } else {
-            placesMap.set(cl.id, enrichPlace(cl));
-            newCount++;
-          }
-        });
-
-        AppState.places = Array.from(placesMap.values());
+      if (cloudLeads !== null) {
+        // O conjunto de leads do usuário é definido estritamente pela sua permissão na nuvem
+        AppState.places = cloudLeads.map(enrichPlace);
         savePlaces();
         updateUI();
 
         if (showFeedback) {
-          showToast(`Nuvem sincronizada: ${cloudLeads.length} registros obtidos!`);
+          if (cloudLeads.length > 0) {
+            showToast(`Nuvem sincronizada: ${cloudLeads.length} leads da sua carteira carregados!`);
+          } else {
+            showToast('Nenhum lead atribuído à sua carteira no momento.');
+          }
         }
       } else if (showFeedback) {
-        showToast('Nenhum dado na nuvem ainda. Suba a base inicial com o botão "Subir Base para Nuvem".');
+        showToast('Nenhum dado retornado da nuvem.');
       }
     } catch (err) {
       console.error('Erro ao puxar da nuvem:', err);
@@ -3027,4 +3171,7 @@ function setupCloudSyncIntegration() {
   // Initial Boot
   CloudSync.init();
   updateStatusUI(CloudSync.currentUser);
+  if (CloudSync.isConfigured) {
+    syncFromCloud(false);
+  }
 }

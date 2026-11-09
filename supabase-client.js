@@ -91,8 +91,20 @@ const CloudSync = {
     const email = (user.email || '').toLowerCase().trim();
     const configAdmins = (window.SUPABASE_CONFIG?.adminEmails || []).map(e => e.toLowerCase().trim());
     if (configAdmins.includes(email)) return true;
+    if (user.role === 'master' || user.role === 'admin') return true;
     if (user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin') return true;
+    if (user.app_metadata?.role === 'master' || user.user_metadata?.role === 'master') return true;
     return false;
+  },
+
+  isSupervisor(user = this.currentUser) {
+    if (!user) return false;
+    return user.role === 'supervisor';
+  },
+
+  isAgent(user = this.currentUser) {
+    if (!user) return false;
+    return user.role === 'agent' || user.role === 'seller';
   },
 
   onAuthChange(cb) {
@@ -105,11 +117,11 @@ const CloudSync = {
 
   // --- GESTÃO DE USUÁRIOS E APROVAÇÃO PRÉVIA ---
 
-  async registerUserInSystem(user, fullName = '') {
+  async registerUserInSystem(user, fullName = '', defaultRole = 'agent') {
     if (!this.client || !user) return null;
-    const isAdmin = this.isAdmin(user);
-    const initialStatus = isAdmin ? 'approved' : 'pending';
-    const role = isAdmin ? 'admin' : 'seller';
+    const isMaster = this.isAdmin(user);
+    const initialStatus = isMaster ? 'approved' : 'pending';
+    const role = isMaster ? 'master' : defaultRole;
 
     try {
       const { data, error } = await this.client
@@ -136,36 +148,57 @@ const CloudSync = {
   },
 
   async checkUserApproval(user) {
-    if (!user) return { status: 'none', isApproved: false };
-    if (this.isAdmin(user)) return { status: 'approved', isApproved: true, role: 'admin' };
+    if (!user) return { status: 'none', isApproved: false, role: 'agent' };
+    if (this.isAdmin(user)) {
+      if (this.client) {
+        this.client.from('system_users').upsert({
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || 'Filipe (Master)',
+          status: 'approved',
+          role: 'master'
+        }, { onConflict: 'id' }).then(() => {}).catch(() => {});
+      }
+      return { status: 'approved', isApproved: true, role: 'master' };
+    }
 
-    if (!this.client) return { status: 'approved', isApproved: true, role: 'seller' };
+    if (!this.client) return { status: 'approved', isApproved: true, role: 'agent' };
 
     try {
       const { data, error } = await this.client
         .from('system_users')
-        .select('status, role, full_name')
+        .select('id, status, role, full_name, supervisor_id')
         .eq('id', user.id)
         .maybeSingle();
 
       if (error) {
         console.warn('Erro ao checar status em system_users:', error);
-        return { status: 'approved', isApproved: true, role: 'seller' };
+        return { status: 'approved', isApproved: true, role: 'agent' };
       }
 
       if (!data) {
         await this.registerUserInSystem(user);
-        return { status: 'pending', isApproved: false, role: 'seller' };
+        return { status: 'pending', isApproved: false, role: 'agent' };
       }
+
+      let role = data.role || 'agent';
+      if (role === 'admin') role = 'master';
+      if (role === 'seller') role = 'agent';
+
+      user.role = role;
+      user.supervisorId = data.supervisor_id;
+      user.fullName = data.full_name;
 
       return {
         status: data.status,
         isApproved: data.status === 'approved',
-        role: data.role
+        role: role,
+        supervisorId: data.supervisor_id,
+        fullName: data.full_name
       };
     } catch (e) {
       console.warn('Falha ao consultar aprovação:', e);
-      return { status: 'approved', isApproved: true, role: 'seller' };
+      return { status: 'approved', isApproved: true, role: 'agent' };
     }
   },
 
@@ -193,7 +226,7 @@ const CloudSync = {
     try {
       const updatePayload = {
         status: newStatus,
-        approved_by: adminEmail || this.currentUser?.email || 'admin'
+        approved_by: adminEmail || this.currentUser?.email || 'master'
       };
       if (newStatus === 'approved') {
         updatePayload.approved_at = new Date().toISOString();
@@ -209,6 +242,103 @@ const CloudSync = {
     } catch (e) {
       console.error('Erro ao atualizar status do usuário:', e);
       throw e;
+    }
+  },
+
+  async updateUserRoleAndSupervisor(userId, role, supervisorId = null) {
+    if (!this.client || !userId) return false;
+    try {
+      const updatePayload = {
+        role: role,
+        supervisor_id: (role === 'agent' && supervisorId) ? supervisorId : null
+      };
+
+      const { error } = await this.client
+        .from('system_users')
+        .update(updatePayload)
+        .eq('id', userId);
+
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.error('Erro ao atualizar cargo/supervisor do usuário:', e);
+      throw e;
+    }
+  },
+
+  async fetchSupervisors() {
+    if (!this.client) return [];
+    try {
+      const { data, error } = await this.client
+        .from('system_users')
+        .select('id, email, full_name')
+        .eq('status', 'approved')
+        .eq('role', 'supervisor');
+
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.warn('Erro ao buscar supervisores:', e);
+      return [];
+    }
+  },
+
+  // --- BASE DEDICADA DE CNPJS (RECEITA FEDERAL / FICHÁRIO) ---
+
+  async fetchCnpjLeads() {
+    if (!this.client) {
+      try {
+        const res = await fetch('data/cnpj-leads.json?v=' + Date.now());
+        if (res.ok) return await res.json();
+      } catch (e) {}
+      return [];
+    }
+
+    try {
+      const { data, error } = await this.client
+        .from('cnpj_leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        // Fallback local se a tabela ainda não tiver sido criada no Supabase
+        console.warn('Tabela cnpj_leads não encontrada no Supabase, usando cache local:', error.message);
+        try {
+          const res = await fetch('data/cnpj-leads.json?v=' + Date.now());
+          if (res.ok) return await res.json();
+        } catch (e) {}
+        return [];
+      }
+      return data || [];
+    } catch (e) {
+      console.warn('Erro ao buscar cnpj_leads:', e);
+      try {
+        const res = await fetch('data/cnpj-leads.json?v=' + Date.now());
+        if (res.ok) return await res.json();
+      } catch (err) {}
+      return [];
+    }
+  },
+
+  async fetchAgents(supervisorId = null) {
+    if (!this.client) return [];
+    try {
+      let query = this.client
+        .from('system_users')
+        .select('id, email, full_name, supervisor_id')
+        .eq('status', 'approved')
+        .in('role', ['agent', 'seller']);
+
+      if (supervisorId) {
+        query = query.eq('supervisor_id', supervisorId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.warn('Erro ao buscar agentes:', e);
+      return [];
     }
   },
 
@@ -241,21 +371,63 @@ const CloudSync = {
 
   // --- OPERAÇÕES NO BANCO DE DADOS (LEADS) ---
 
-  async fetchAllLeads() {
+  async fetchAllLeads(forceAll = false) {
     if (!this.client) return null;
 
     try {
+      let isMaster = forceAll;
+      let role = 'agent';
+      let userId = this.currentUser?.id;
+
+      if (!forceAll && this.currentUser) {
+        isMaster = this.isAdmin(this.currentUser);
+        if (!isMaster) {
+          const approval = await this.checkUserApproval(this.currentUser);
+          role = approval.role;
+        } else {
+          role = 'master';
+        }
+      }
+
       // Supabase limita a 1000 por página, buscamos todos em paginação
       let allRows = [];
       let from = 0;
       const step = 1000;
       let hasMore = true;
 
+      // Se for Supervisor, buscar os agentes subordinados
+      let supervisedAgentIds = [];
+      if (role === 'supervisor' && userId) {
+        const { data: team } = await this.client
+          .from('system_users')
+          .select('id')
+          .eq('supervisor_id', userId);
+        supervisedAgentIds = (team || []).map(t => t.id);
+      }
+
       while (hasMore) {
-        const { data, error } = await this.client
+        let query = this.client
           .from('leads')
           .select('*')
           .range(from, from + step - 1);
+
+        // Aplicação de filtros por hierarquia RBAC
+        if (!isMaster && userId) {
+          if (role === 'supervisor') {
+            // Vê leads atribuídos ao supervisor OU à sua equipe de agentes
+            if (supervisedAgentIds.length > 0) {
+              const idsList = [userId, ...supervisedAgentIds].join(',');
+              query = query.or(`assigned_supervisor_id.eq.${userId},assigned_to.in.(${idsList})`);
+            } else {
+              query = query.or(`assigned_supervisor_id.eq.${userId},assigned_to.eq.${userId}`);
+            }
+          } else if (role === 'agent' || role === 'seller') {
+            // Agente vê apenas leads atribuídos a ele
+            query = query.eq('assigned_to', userId);
+          }
+        }
+
+        const { data, error } = await query;
 
         if (error) {
           console.error('Erro ao buscar leads do Supabase:', error);
@@ -306,6 +478,70 @@ const CloudSync = {
     } catch (e) {
       console.error('Erro na requisição ao Supabase:', e);
       return false;
+    }
+  },
+
+  async assignLead(leadId, assignedToUserId, assignedSupervisorId = null, assignedByName = '') {
+    if (!this.client || !leadId) return false;
+    try {
+      const payload = {
+        assigned_to: assignedToUserId || null,
+        assigned_supervisor_id: assignedSupervisorId || null,
+        assigned_by: assignedByName || this.currentUser?.email || 'Master',
+        assigned_at: new Date().toISOString()
+      };
+
+      const { error } = await this.client
+        .from('leads')
+        .update(payload)
+        .eq('id', leadId);
+
+      if (error) throw error;
+
+      await this.recordInteraction(
+        leadId, 
+        'assignment', 
+        `Lead atribuído para: ${assignedToUserId || 'Pool Geral'} por ${assignedByName || this.currentUser?.email}`
+      );
+
+      return true;
+    } catch (e) {
+      console.error('Erro ao atribuir lead:', e);
+      throw e;
+    }
+  },
+
+  async bulkAssignLeads(leadIds, assignedToUserId, assignedSupervisorId = null, assignedByName = '') {
+    if (!this.client || !leadIds || leadIds.length === 0) return false;
+    try {
+      const payload = {
+        assigned_to: assignedToUserId || null,
+        assigned_supervisor_id: assignedSupervisorId || null,
+        assigned_by: assignedByName || this.currentUser?.email || 'Master',
+        assigned_at: new Date().toISOString()
+      };
+
+      const batchSize = 100;
+      for (let i = 0; i < leadIds.length; i += batchSize) {
+        const chunk = leadIds.slice(i, i + batchSize);
+        const { error } = await this.client
+          .from('leads')
+          .update(payload)
+          .in('id', chunk);
+
+        if (error) throw error;
+      }
+
+      await this.recordInteraction(
+        'SISTEMA',
+        'bulk_assignment',
+        `Lote de ${leadIds.length} leads atribuído para usuário ${assignedToUserId || 'Pool Geral'}`
+      );
+
+      return true;
+    } catch (e) {
+      console.error('Erro ao atribuir lote de leads:', e);
+      throw e;
     }
   },
 
@@ -377,7 +613,11 @@ const CloudSync = {
       tags: p.tags || [],
       cnpj: p.cnpj || '',
       cnae: p.cnae || '',
-      data_abertura: p.dataAbertura || ''
+      data_abertura: p.dataAbertura || '',
+      assigned_to: p.assignedTo || null,
+      assigned_supervisor_id: p.assignedSupervisorId || null,
+      assigned_by: p.assignedBy || '',
+      assigned_at: p.assignedAt || null
     };
   },
 
@@ -411,6 +651,10 @@ const CloudSync = {
       cnpj: row.cnpj,
       cnae: row.cnae,
       dataAbertura: row.data_abertura,
+      assignedTo: row.assigned_to || null,
+      assignedSupervisorId: row.assigned_supervisor_id || null,
+      assignedBy: row.assigned_by || '',
+      assignedAt: row.assigned_at || null,
       updatedByEmail: row.updated_by_email,
       updatedAt: row.updated_at
     };

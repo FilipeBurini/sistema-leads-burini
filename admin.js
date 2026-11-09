@@ -23,12 +23,17 @@ const AdminApp = {
     this.renderMarketShare();
     this.renderCommercialSegments();
     this.renderRecentLeadsTable();
+    this.renderLeadDistributionKPIs();
 
     // 5. Carregar Gestão de Usuários e Feed de Auditoria
     await this.loadSystemUsers();
     await this.loadAuditFeed();
 
-    // 6. Configurar Event Listeners das Ferramentas Master
+    // 6. Carregar Base de CNPJs Oficiais (Receita Federal / Fichário)
+    await this.loadCnpjLeads();
+    this.setupCnpjFilters();
+
+    // 7. Configurar Event Listeners das Ferramentas Master
     this.setupEventListeners();
     this.setupRealtimeSync();
   },
@@ -74,10 +79,10 @@ const AdminApp = {
     const statusText = document.getElementById('cloudSyncStatusText');
     if (statusText) statusText.textContent = 'Carregando dados...';
 
-    // 1. Tentar buscar da nuvem (Supabase)
+    // 1. Tentar buscar da nuvem (Supabase) - Master sempre puxa todos os registros
     if (CloudSync.isConfigured && this.currentUser) {
       try {
-        const cloudLeads = await CloudSync.fetchAllLeads();
+        const cloudLeads = await CloudSync.fetchAllLeads(true);
         if (cloudLeads && cloudLeads.length > 0) {
           this.places = cloudLeads;
           if (statusText) statusText.textContent = `Nuvem Ativa (${cloudLeads.length} leads sincronizados)`;
@@ -89,7 +94,7 @@ const AdminApp = {
     }
 
     // 2. Fallback: LocalStorage
-    const saved = localStorage.getItem('citymap_places_data');
+    const saved = localStorage.getItem('citymap_places_data_v3');
     if (saved) {
       try {
         this.places = JSON.parse(saved);
@@ -334,54 +339,255 @@ const AdminApp = {
       return;
     }
 
+    // Lista de Supervisores para alimentar o select dos agentes
+    const supervisors = this.systemUsers.filter(u => u.role === 'supervisor' && u.status === 'approved');
+
     tbody.innerHTML = this.systemUsers.map(u => {
-      const isMasterAdmin = (window.SUPABASE_CONFIG?.adminEmails || []).includes(u.email) || u.role === 'admin';
+      const isMasterAdmin = (window.SUPABASE_CONFIG?.adminEmails || []).includes(u.email) || u.role === 'master' || u.role === 'admin';
       const createdDate = u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '—';
       const name = u.full_name || 'Sem nome informado';
 
+      let currentRole = u.role || 'agent';
+      if (currentRole === 'seller') currentRole = 'agent';
+      if (currentRole === 'admin') currentRole = 'master';
+
+      let roleSelector = '';
+      let supervisorSelector = '';
       let statusBadge = '';
       let actionButtons = '';
 
       if (isMasterAdmin) {
-        statusBadge = `<span class="status-pill status-approved">👑 Master</span>`;
-        actionButtons = `<span style="font-size:0.75rem; color:#fbbf24; font-weight:700;">Administrador Master</span>`;
-      } else if (u.status === 'pending') {
-        statusBadge = `<span class="status-pill status-pending">⏳ Aguardando</span>`;
-        actionButtons = `
-          <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'approved', '${u.email}')">
-            <i class="ri-check-line"></i> Aprovar
-          </button>
-          <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'rejected', '${u.email}')">
-            <i class="ri-close-line"></i> Recusar
-          </button>
+        roleSelector = `<span style="font-size:0.75rem; color:#fbbf24; font-weight:700;">👑 Master</span>`;
+        supervisorSelector = `<span style="color:#64748b; font-size:0.75rem;">— (Direção Geral)</span>`;
+        statusBadge = `<span class="status-pill status-approved">👑 Ativo</span>`;
+        actionButtons = `<span style="font-size:0.75rem; color:#fbbf24; font-weight:700;">Conta Master</span>`;
+      } else {
+        // Seletor de Cargo Dinâmico
+        roleSelector = `
+          <select onchange="AdminApp.handleRoleChange('${u.id}', this.value)" style="background:#0b1120; border:1px solid var(--border-color); color:#fff; border-radius:4px; padding:3px 6px; font-size:0.75rem; cursor:pointer;">
+            <option value="agent" ${currentRole === 'agent' ? 'selected' : ''}>👤 Agente Comercial</option>
+            <option value="supervisor" ${currentRole === 'supervisor' ? 'selected' : ''}>👔 Supervisor de Vendas</option>
+            <option value="master" ${currentRole === 'master' ? 'selected' : ''}>👑 Administrador Master</option>
+          </select>
         `;
-      } else if (u.status === 'approved') {
-        statusBadge = `<span class="status-pill status-approved">✅ Liberado</span>`;
-        actionButtons = `
-          <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'rejected', '${u.email}')" title="Bloquear acesso deste usuário">
-            <i class="ri-forbid-2-line"></i> Bloquear Acesso
-          </button>
-        `;
-      } else if (u.status === 'rejected') {
-        statusBadge = `<span class="status-pill status-rejected">🚫 Recusado</span>`;
-        actionButtons = `
-          <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'approved', '${u.email}')" title="Reativar acesso">
-            <i class="ri-restart-line"></i> Liberar Acesso
-          </button>
-        `;
+
+        // Seletor de Supervisor Designado
+        if (currentRole === 'agent') {
+          supervisorSelector = `
+            <select onchange="AdminApp.handleSupervisorChange('${u.id}', this.value)" style="background:#0b1120; border:1px solid var(--border-color); color:#38bdf8; border-radius:4px; padding:3px 6px; font-size:0.75rem; cursor:pointer; max-width:180px;">
+              <option value="">— Sem Supervisor (Master) —</option>
+              ${supervisors.map(s => `
+                <option value="${s.id}" ${u.supervisor_id === s.id ? 'selected' : ''}>👔 ${s.full_name || s.email.split('@')[0]}</option>
+              `).join('')}
+            </select>
+          `;
+        } else {
+          supervisorSelector = `<span style="color:#64748b; font-size:0.75rem;">— (Gestão Direta)</span>`;
+        }
+
+        if (u.status === 'pending') {
+          statusBadge = `<span class="status-pill status-pending">⏳ Aguardando</span>`;
+          actionButtons = `
+            <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'approved', '${u.email}')">
+              <i class="ri-check-line"></i> Aprovar
+            </button>
+            <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'rejected', '${u.email}')">
+              <i class="ri-close-line"></i> Recusar
+            </button>
+          `;
+        } else if (u.status === 'approved') {
+          statusBadge = `<span class="status-pill status-approved">✅ Liberado</span>`;
+          actionButtons = `
+            <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'rejected', '${u.email}')" title="Bloquear acesso deste usuário">
+              <i class="ri-forbid-2-line"></i> Bloquear
+            </button>
+          `;
+        } else if (u.status === 'rejected') {
+          statusBadge = `<span class="status-pill status-rejected">🚫 Recusado</span>`;
+          actionButtons = `
+            <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'approved', '${u.email}')" title="Reativar acesso">
+              <i class="ri-restart-line"></i> Liberar
+            </button>
+          `;
+        }
       }
 
       return `
         <tr>
           <td><strong>${name}</strong></td>
           <td>${u.email}</td>
-          <td>${createdDate}</td>
-          <td><span style="font-size:0.75rem; color:var(--text-muted);">${u.role === 'admin' ? 'Administrador' : 'Corretor / Vendedor'}</span></td>
+          <td>${roleSelector}</td>
+          <td>${supervisorSelector}</td>
           <td>${statusBadge}</td>
           <td style="text-align: right;">${actionButtons}</td>
         </tr>
       `;
     }).join('');
+
+    // Atualizar dropdown de distribuição de carteiras
+    this.populateAgentDropdown();
+  },
+
+  async handleRoleChange(userId, newRole) {
+    try {
+      await CloudSync.updateUserRoleAndSupervisor(userId, newRole, null);
+      const target = (this.systemUsers || []).find(u => u.id === userId);
+      if (target) {
+        target.role = newRole;
+        if (newRole !== 'agent') target.supervisor_id = null;
+      }
+      this.renderSystemUsersTable();
+      await CloudSync.recordInteraction('SISTEMA', 'role_change', `Cargo de usuário alterado para: ${newRole}`);
+    } catch (e) {
+      alert('Erro ao alterar cargo: ' + (e.message || e));
+    }
+  },
+
+  async handleSupervisorChange(userId, supervisorId) {
+    try {
+      await CloudSync.updateUserRoleAndSupervisor(userId, 'agent', supervisorId || null);
+      const target = (this.systemUsers || []).find(u => u.id === userId);
+      if (target) {
+        target.supervisor_id = supervisorId || null;
+      }
+      this.renderSystemUsersTable();
+      await CloudSync.recordInteraction('SISTEMA', 'supervisor_assignment', `Agente vinculado a supervisor: ${supervisorId || 'Master'}`);
+    } catch (e) {
+      alert('Erro ao vincular supervisor: ' + (e.message || e));
+    }
+  },
+
+  // --- DISTRIBUIÇÃO DE LEADS & GESTÃO DE CARTEIRAS ---
+
+  renderLeadDistributionKPIs() {
+    let unassigned = 0;
+    let supervised = 0;
+    let assignedAgent = 0;
+
+    (this.places || []).forEach(p => {
+      if (p.assignedTo) {
+        assignedAgent++;
+      } else if (p.assignedSupervisorId) {
+        supervised++;
+      } else {
+        unassigned++;
+      }
+    });
+
+    this.animateCounter('kpiUnassignedLeads', unassigned);
+    this.animateCounter('kpiSupervisedLeads', supervised);
+    this.animateCounter('kpiAssignedAgentLeads', assignedAgent);
+
+    const poolBadge = document.getElementById('leadsPoolBadge');
+    if (poolBadge) {
+      poolBadge.textContent = `🌐 ${unassigned} no Pool Geral`;
+    }
+  },
+
+  populateAgentDropdown() {
+    const select = document.getElementById('distSelectAgent');
+    if (!select) return;
+
+    const agents = (this.systemUsers || []).filter(u => (u.role === 'agent' || u.role === 'seller') && u.status === 'approved');
+    const supervisorsMap = new Map((this.systemUsers || []).map(u => [u.id, u.full_name || u.email.split('@')[0]]));
+
+    if (agents.length === 0) {
+      select.innerHTML = '<option value="">Nenhum Agente Comercial aprovado</option>';
+      return;
+    }
+
+    select.innerHTML = '<option value="">Selecione um Agente...</option>' + agents.map(a => {
+      const supName = a.supervisor_id ? supervisorsMap.get(a.supervisor_id) || 'Supervisor' : 'Master Direto';
+      return `<option value="${a.id}">👤 ${a.full_name || a.email} (Sup: ${supName})</option>`;
+    }).join('');
+  },
+
+  async handleBatchAssign() {
+    const selectAgent = document.getElementById('distSelectAgent');
+    const selectSegment = document.getElementById('distFilterSegment');
+    const selectLimit = document.getElementById('distFilterLimit');
+    const feedback = document.getElementById('distFeedbackMessage');
+
+    const agentId = selectAgent ? selectAgent.value : '';
+    if (!agentId) {
+      alert('Por favor, selecione qual Agente Comercial receberá a carteira de leads.');
+      return;
+    }
+
+    const targetAgent = (this.systemUsers || []).find(u => u.id === agentId);
+    const supervisorId = targetAgent?.supervisor_id || null;
+
+    const segment = selectSegment ? selectSegment.value : 'all';
+    const limit = selectLimit ? selectLimit.value : '50';
+
+    // Filtrar leads candidatos
+    let candidates = (this.places || []).filter(p => {
+      // Priorizar os não atribuídos se o filtro pedir ou se estiver livre
+      if (segment === 'unassigned') {
+        return !p.assignedTo;
+      }
+      if (segment === 'high_ticket') {
+        return !!p.isHighTicket;
+      }
+      if (segment === 'giro_rapido') {
+        return !!p.isHighTurnover;
+      }
+      if (segment !== 'all') {
+        return (p.commercialSegment || '') === segment;
+      }
+      return true;
+    });
+
+    if (candidates.length === 0) {
+      alert('Nenhum lead encontrado com os filtros selecionados.');
+      return;
+    }
+
+    const numToAssign = limit === 'all' ? candidates.length : Math.min(parseInt(limit, 10), candidates.length);
+    const selectedBatch = candidates.slice(0, numToAssign);
+    const selectedIds = selectedBatch.map(p => p.id);
+
+    const agentName = targetAgent?.full_name || targetAgent?.email;
+    if (!confirm(`Deseja realmente atribuir ${selectedIds.length} estabelecimentos para o Agente "${agentName}"?`)) {
+      return;
+    }
+
+    const btn = document.getElementById('btnExecuteBatchAssign');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ri-loader-4-line spinner"></i> Atribuindo...';
+    }
+
+    try {
+      await CloudSync.bulkAssignLeads(selectedIds, agentId, supervisorId, this.currentUser?.email || 'Master');
+
+      // Atualizar localmente
+      selectedBatch.forEach(p => {
+        p.assignedTo = agentId;
+        p.assignedSupervisorId = supervisorId;
+        p.assignedBy = this.currentUser?.email || 'Master';
+        p.assignedAt = new Date().toISOString();
+      });
+
+      this.renderLeadDistributionKPIs();
+      await this.loadAuditFeed();
+
+      if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.color = '#34d399';
+        feedback.innerHTML = `✔ <strong>Sucesso!</strong> ${selectedIds.length} leads foram atribuídos à carteira de <strong>${agentName}</strong>!`;
+        setTimeout(() => { feedback.style.display = 'none'; }, 6000);
+      }
+
+      alert(`✔ ${selectedIds.length} leads foram distribuídos com sucesso para ${agentName}!`);
+    } catch (err) {
+      alert('Erro ao atribuir carteira: ' + (err.message || err));
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ri-send-plane-fill"></i> Atribuir Carteira';
+      }
+    }
   },
 
   async handleUpdateUserStatus(userId, newStatus, userEmail) {
@@ -416,6 +622,9 @@ const AdminApp = {
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lead_interactions' }, (payload) => {
           this.loadAuditFeed();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cnpj_leads' }, (payload) => {
+          this.loadCnpjLeads();
         })
         .subscribe();
     } catch (e) {
@@ -467,6 +676,14 @@ const AdminApp = {
   },
 
   setupEventListeners() {
+    // Botão de Atribuição em Lote de Carteiras
+    const batchAssignBtn = document.getElementById('btnExecuteBatchAssign');
+    if (batchAssignBtn) {
+      batchAssignBtn.addEventListener('click', () => {
+        this.handleBatchAssign();
+      });
+    }
+
     // Busca na tabela de leads
     const searchInput = document.getElementById('adminLeadSearch');
     if (searchInput) {
@@ -561,6 +778,215 @@ const AdminApp = {
     a.download = `relatorio_leads_comerciais_franca_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  },
+
+  // --- GESTÃO DA BASE DEDICADA DE CNPJS (RECEITA FEDERAL & FICHÁRIO) ---
+  cnpjLeads: [],
+  cnpjFilter: 'all',
+  cnpjSearchTerm: '',
+
+  async loadCnpjLeads() {
+    const tbody = document.getElementById('cnpjLeadsTableBody');
+    if (!tbody) return;
+
+    try {
+      this.cnpjLeads = await CloudSync.fetchCnpjLeads();
+      this.updateCnpjMetrics();
+      this.renderCnpjTable();
+    } catch (e) {
+      console.warn('Erro ao carregar base de CNPJs:', e);
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:2rem;">Nenhum CNPJ carregado no momento.</td></tr>`;
+      }
+    }
+  },
+
+  updateCnpjMetrics() {
+    const list = this.cnpjLeads || [];
+    const total = list.length;
+    const matched = list.filter(c => !!c.matched_lead_id).length;
+    const novos = total - matched;
+    const ghosts = list.filter(c => !!c.is_ghost_suspect).length;
+
+    this.animateCounter('metricTotalCnpjs', total);
+    this.animateCounter('metricMatchedCnpjs', matched);
+    this.animateCounter('metricNewCnpjs', novos);
+    this.animateCounter('metricGhostCnpjs', ghosts);
+  },
+
+  renderCnpjTable() {
+    const tbody = document.getElementById('cnpjLeadsTableBody');
+    if (!tbody) return;
+
+    let items = (this.cnpjLeads || []).slice();
+
+    // 1. Filtro por status/categoria
+    if (this.cnpjFilter === 'matched') {
+      items = items.filter(c => !!c.matched_lead_id);
+    } else if (this.cnpjFilter === 'new') {
+      items = items.filter(c => !c.matched_lead_id);
+    } else if (this.cnpjFilter === 'ghost') {
+      items = items.filter(c => !!c.is_ghost_suspect);
+    }
+
+    // 2. Filtro por termo de busca
+    if (this.cnpjSearchTerm) {
+      const q = this.cnpjSearchTerm.toLowerCase().trim();
+      items = items.filter(c => {
+        const cnpjFmt = (c.cnpj_formatted || c.cnpj || '').toLowerCase();
+        const razao = (c.razao_social || '').toLowerCase();
+        const fantasia = (c.nome_fantasia || '').toLowerCase();
+        const end = (c.endereco_completo || c.logradouro || '').toLowerCase();
+        const sociosStr = (Array.isArray(c.socios) ? c.socios.map(s => s.nome).join(' ') : '').toLowerCase();
+        return cnpjFmt.includes(q) || razao.includes(q) || fantasia.includes(q) || end.includes(q) || sociosStr.includes(q);
+      });
+    }
+
+    if (items.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align: center; color: #94a3b8; padding: 2.5rem;">
+            <i class="ri-search-line" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>
+            Nenhum CNPJ encontrado para os filtros selecionados.
+          </td>
+        </tr>`;
+      return;
+    }
+
+    tbody.innerHTML = items.map(c => {
+      const formattedCnpj = c.cnpj_formatted || (c.cnpj ? c.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : '—');
+      const porte = c.porte || 'Demais';
+      const porteColor = porte === 'ME' ? '#38bdf8' : (porte === 'EPP' ? '#a855f7' : '#94a3b8');
+      
+      // Sócios
+      let sociosHtml = '<span style="color:#64748b; font-size:0.75rem;">Sem sócios listados</span>';
+      if (Array.isArray(c.socios) && c.socios.length > 0) {
+        sociosHtml = c.socios.slice(0, 2).map(s => `
+          <div style="font-size: 0.73rem; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;">
+            <i class="ri-user-line" style="color: #60a5fa;"></i> ${s.nome}
+            <span style="color: #64748b; font-size: 0.68rem;">(${s.qualificacao || 'Sócio'})</span>
+          </div>
+        `).join('');
+        if (c.socios.length > 2) {
+          sociosHtml += `<span style="font-size:0.68rem; color:#94a3b8;">+ ${c.socios.length - 2} outros</span>`;
+        }
+      }
+
+      // Faturamento Estimado
+      const fatValor = Number(c.faturamento_estimado_central || 0);
+      const fatFormatado = fatValor > 0 ? `R$ ${fatValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/ano` : (c.faixa_receita_estimada || 'Não informada');
+      const capitalValor = Number(c.capital_social || 0);
+
+      // Vínculo
+      let matchBadge = `
+        <span style="display: inline-flex; align-items: center; gap: 0.3rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); padding: 0.25rem 0.55rem; border-radius: 6px; font-size: 0.72rem; font-weight: 600;">
+          <i class="ri-sparkling-line"></i> Novo Prospect
+        </span>`;
+      if (c.matched_lead_id) {
+        matchBadge = `
+          <span style="display: inline-flex; align-items: center; gap: 0.3rem; background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); padding: 0.25rem 0.55rem; border-radius: 6px; font-size: 0.72rem; font-weight: 600;">
+            <i class="ri-check-line"></i> Vinculado a Lead
+          </span>`;
+      }
+
+      // Endereço e Alerta Fantasma
+      let addressHtml = `<div style="font-size: 0.75rem; color: #cbd5e1; max-width: 220px; line-height: 1.3;">${c.endereco_completo || (c.logradouro + ', ' + c.numero + ' - ' + c.bairro)}</div>`;
+      if (c.is_ghost_suspect) {
+        addressHtml = `
+          <div style="margin-bottom: 0.25rem;">
+            <span style="display: inline-flex; align-items: center; gap: 0.3rem; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.7rem; font-weight: 700;" title="${c.ghost_reason || ''}">
+              <i class="ri-alert-fill"></i> ${c.ghost_count_at_address} no mesmo local (Suspeita)
+            </span>
+          </div>
+          <div style="font-size: 0.72rem; color: #94a3b8; max-width: 220px;">${c.endereco_completo || (c.logradouro + ', ' + c.numero)}</div>`;
+      }
+
+      return `
+        <tr>
+          <td>
+            <div style="font-weight: 600; color: #f8fafc; font-family: monospace; font-size: 0.8rem;">
+              ${formattedCnpj}
+            </div>
+            <div style="margin-top: 0.2rem;">
+              <span style="background: rgba(255,255,255,0.06); color: ${porteColor}; border: 1px solid ${porteColor}40; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.68rem; font-weight: 600;">
+                ${porte}
+              </span>
+              ${c.simples_nacional ? '<span style="background:rgba(16,185,129,0.1); color:#34d399; font-size:0.65rem; padding:0.15rem 0.35rem; border-radius:4px; margin-left:3px;">Simples</span>' : ''}
+            </div>
+          </td>
+          <td>
+            <div style="font-weight: 600; color: #fff; font-size: 0.82rem; max-width: 200px;">
+              ${c.nome_fantasia || c.razao_social}
+            </div>
+            ${c.nome_fantasia ? `<div style="font-size: 0.7rem; color: #94a3b8; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${c.razao_social}</div>` : ''}
+            ${c.telefone ? `<div style="font-size: 0.7rem; color: #38bdf8; margin-top: 2px;"><i class="ri-phone-line"></i> ${c.telefone}</div>` : ''}
+          </td>
+          <td>
+            <div style="font-weight: 600; color: #cbd5e1; font-size: 0.75rem; font-family: monospace;">
+              ${c.cnae_principal || '—'}
+            </div>
+            <div style="font-size: 0.7rem; color: #94a3b8; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${c.cnae_descricao || ''}
+            </div>
+          </td>
+          <td>
+            ${sociosHtml}
+          </td>
+          <td>
+            <div style="font-size: 0.75rem; color: #34d399; font-weight: 600;">
+              ${fatFormatado}
+            </div>
+            <div style="font-size: 0.68rem; color: #64748b;">
+              Capital: R$ ${capitalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>
+          </td>
+          <td>
+            ${matchBadge}
+          </td>
+          <td>
+            ${addressHtml}
+          </td>
+        </tr>`;
+    }).join('');
+  },
+
+  setupCnpjFilters() {
+    // Busca instantânea de CNPJ
+    const searchInput = document.getElementById('adminCnpjSearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.cnpjSearchTerm = e.target.value;
+        this.renderCnpjTable();
+      });
+    }
+
+    // Botão de Refresh
+    const refreshBtn = document.getElementById('refreshCnpjBtn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async () => {
+        refreshBtn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i>';
+        await this.loadCnpjLeads();
+        refreshBtn.innerHTML = '<i class="ri-refresh-line"></i>';
+      });
+    }
+
+    // Botões de filtro
+    const filterBtns = document.querySelectorAll('.cnpj-filter-btn');
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => {
+          b.classList.remove('active');
+          b.style.background = 'rgba(255,255,255,0.03)';
+          b.style.color = '#94a3b8';
+        });
+        btn.classList.add('active');
+        btn.style.background = 'rgba(99, 102, 241, 0.2)';
+        btn.style.color = '#fff';
+
+        this.cnpjFilter = btn.dataset.filter;
+        this.renderCnpjTable();
+      });
+    });
   },
 
   animateCounter(id, target) {

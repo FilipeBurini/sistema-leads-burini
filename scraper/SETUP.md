@@ -1,0 +1,434 @@
+# Setup guide: Google Maps Scraper Kit
+
+This guide takes you from a fresh machine to a finished Google Maps lead list in about 10 minutes.
+The engine starts in seconds; most of the time is the first download of Python, Chrome or Docker if
+you have none. It is written for a person; an agent follows the skill instead.
+
+---
+
+## 0. Install the prerequisites
+
+Install these once:
+
+| Tool | Why | Get it |
+|---|---|---|
+| **Python 3.9 or newer** | runs the engine and scripts; optional website rendering adds Playwright | https://www.python.org/downloads |
+| **Google Chrome** *(or Chromium, Edge or Brave)* | the engine drives it, headless | https://www.google.com/chrome |
+| **Docker Desktop** *(optional)* | runs the engine in a container instead, with its own Chromium | https://www.docker.com/products/docker-desktop |
+| **Claude Code** *(optional but recommended)* | lets Claude drive the scraper for you | https://claude.com/claude-code |
+| **git** | clones the kit and runs `scripts/update.sh` later | https://git-scm.com |
+
+No browser and no wish to install one? Skip it: the first `python3 scripts/engine.py start` downloads
+Google's Chrome for Testing once, about 100 MB, into the kit's `.engine/` folder, and runs it only if
+it matches the SHA-256 pinned in `engine/browser.py`.
+
+Check Python:
+```bash
+python3 --version       # Windows: py --version. Should print 3.9 or newer
+```
+
+> **Platform notes:**
+> - **Windows:** when you install Python, tick **Add python.exe to PATH**, and type `py` wherever this
+>   guide says `python3`. The bash script `scrape.sh` needs **WSL2** or **Git Bash**. Windows on Arm
+>   runs the x64 Chrome for Testing under emulation.
+> - **macOS:** the first `git` or `python3` command may ask to install the Command Line Tools. Click
+>   Install, wait, then run the command again. Apple Silicon and Intel both run natively.
+> - **Linux:** Ubuntu's snap Chromium cannot be driven this way, so the engine skips it and uses
+>   Google Chrome, a non-snap Chromium or the Chrome for Testing download. On a bare server the engine
+>   prints the one `apt-get install` line Chrome's libraries need. Ubuntu 23.10 and newer block
+>   Chrome's sandbox for a browser outside `/opt` (AppArmor); the engine then runs it without one.
+
+---
+
+## 1. Get the kit
+
+If someone shared the folder with you, `cd` into it:
+```bash
+cd google-maps-scraper-kit
+```
+To clone it from GitHub instead: `git clone https://github.com/Mahanaicoach/google-maps-scraper-kit.git && cd google-maps-scraper-kit`.
+
+Create your local config. This step is optional, because the defaults work as they are:
+```bash
+cp .env.example .env
+```
+
+---
+
+## 2. Start the engine
+
+Pick one way. Both run the same engine on the same port, with the same API and web UI.
+
+**A. Without Docker** (Python and Chrome on this machine):
+
+```bash
+python3 scripts/engine.py start
+```
+
+It prints the browser it found and `✓ Engine running: http://localhost:8080`. The engine keeps its
+jobs, results and log in `.engine/` inside the kit folder. The other commands:
+
+```bash
+python3 scripts/engine.py status    # is it running, and with which browser
+python3 scripts/engine.py restart   # after an update, or a change in .env
+python3 scripts/engine.py stop
+```
+
+It does not start again after a reboot by itself: run `start` when you want to scrape.
+
+A job the engine was stopped in the middle of (`stop` or `restart`, `docker compose restart` or
+`stop`, a crash, a reboot) carries on from its last finished keyword when the engine starts again,
+with the rest of its `max_time`. The keyword that was cut short is searched again. If the engine
+crashes or is killed during the same job more than 3 times, the job is marked failed instead, with
+its rows kept. `scripts/scrape.py` keeps polling through a short engine restart (about 1 minute).
+
+**B. With Docker** (Docker Desktop installed and open):
+
+```bash
+docker compose up -d
+```
+
+The first run builds the engine image from the `Dockerfile`: Python plus Debian's Chromium, about
+300 MB to download and 1.2 GB on disk, about a minute. Later starts take seconds, and the engine
+restarts with Docker. Check it with `docker compose ps`.
+
+Switching from A? Stop the native engine first (`python3 scripts/engine.py stop`). The two keep
+separate job lists, so jobs started in one do not show in the other.
+
+**Then check it**, either way:
+
+```bash
+python3 scripts/engine.py status  # should print ✓ Running on http://localhost:8080
+```
+
+When a newer kit is released, `status` adds a line (`↑ Kit v2.3.0 is out ... bash scripts/update.sh`) and the
+web UI shows the same under its title. Both ask GitHub's releases endpoint once a day, with nothing about
+you in the request; `SCRAPER_NO_UPDATE_CHECK=1` in `.env` turns the check off. Nothing updates itself.
+
+It prints `✓ Running on http://localhost:<port>` only when the kit's own engine answers (it checks the
+engine's `X-Engine` header, so another program on the port cannot fool it). The engine also serves a
+web UI and API docs in the browser:
+- Web UI: **http://localhost:8080**
+- API docs: **http://localhost:8080/api/docs** (a plain page; the OpenAPI JSON is at
+  http://localhost:8080/api/openapi.json). Neither needs the API key.
+
+The page has a form. Up front are "What" and "Where": type a few letters, then pick a business type
+(about 4,100: the kit's 201 popular ones, such as "Dentists", then Google's own category names, which
+the page loads from GitHub) and a city (about 168,000 from GeoNames, such as "Austin, Texas, US").
+Both boxes take only picks from their lists, so a search never names a place or a type that does not
+exist; add as many of each as you like. Each type is searched in each city, one job per city, with the
+map centred on that city ("Dentists in Austin, Texas, US"). Pressing Enter in either box adds the pick
+and never starts a search. Below them are two checkboxes that are on by default, "Emails" and "Social
+profiles", under "Collect". Both read each business's homepage. Three collapsed sections hold the rest:
+- **Location and language:** zoom, language and country (default: the city's country).
+- **Advanced options:** depth, time limit, reviews per place (0 to 5) and an MX check of email domains.
+- **Proxies:** one per line. `http://` and `https://` work with or without `user:pass`; `socks5://`
+  works without a login.
+
+The job list shows each job's status with a progress bar, and CSV, JSON and Delete buttons. Job times
+show in your local time, and a review stage reads "reading reviews 7 of 20". A job's error, if any,
+shows under its name. The page downloads the
+engine's raw rows, the rows so far while a job works, in a file named after the search (for example
+`bakery-in-portland-or-c063a815.csv`). The scripts give you the cleaned 8 lead fields and find more
+emails.
+
+> **Rate limits and the law.** The engine sends real requests to Google Maps. Light use is fine. Big
+> jobs back to back, high `depth`, many keywords or scheduled runs without proxies can get your IP
+> temporarily rate-limited by Google, for minutes to hours. Your Google account is not affected. Run
+> one job at a time, start at `depth 5`, and add proxies for large or repeated runs. Scraping Google
+> Maps is against Google's Terms of Service, and phones and emails are personal data, so follow GDPR,
+> CCPA and CAN-SPAM — and LGPD if you operate in Brazil. Details: [Responsible use](README.md#responsible-use).
+
+---
+
+## 3. Run your first scrape from the terminal
+
+Use the Python CLI, which needs no dependencies:
+
+```bash
+python3 scripts/scrape.py "gyms in Miami FL" 25.7617 -80.1918 --depth 5
+```
+
+Or the bash script. Its arguments are `"<keyword>" <lat> <lon> [depth]`:
+
+```bash
+bash scripts/scrape.sh "coffee shops in Austin TX" 30.2672 -97.7431 5
+```
+
+Both scripts create the job, poll until it is done, download the CSV, keep the 8 lead fields and
+print a short preview. The Python CLI also prints the job's progress while it polls, e.g.
+`keyword 2/3, 41 places, 50%`. It also adds the six social columns (`--no-socials` drops them). The full results go to a file. Each `depth` step loads one more batch of about
+20 places, so depth 5 returns up to about 100, near Google's cap of about 120 per search.
+
+**Skip the coordinates.** Pass `--city` and the Python CLI geocodes the city for you:
+```bash
+python3 scripts/scrape.py "cafes in Austin TX" --city "Austin, TX" --depth 5
+```
+
+**Run many keywords in one job** from a file, one keyword per line:
+```bash
+python3 scripts/scrape.py --keywords-file examples/queries.example.txt --city "Denver, CO"
+```
+
+**Go past Google's ~120 results per search.** `--grid 3` splits the city into a 3 x 3 grid of map
+tiles. That is 9 jobs, run one at a time, with duplicates removed:
+```bash
+python3 scripts/scrape.py "plumbers in Phoenix AZ" --city "Phoenix, AZ" --grid 3
+```
+
+`--deep-scan` is the `!` option (slower): it runs the grid (3 x 3 unless `--grid` says otherwise), then
+splits every tile that came back at Google's cap, about 120 places per keyword, into 4 sub-tiles one zoom
+level in, and dedupes everything on `place_id`. Up to 5x the tiles, about 25 s each per keyword; the
+script prints the time range before it starts.
+
+**Scraping another country?** `--lang` sets the interface language (category names, hours text),
+and `--country` the 2-letter country Google ranks and formats results for (default: the country of
+your IP address): `--lang de --country de`. Phones come as Google shows them in that market:
+international `+1 …` in the US, national `030 …` in Germany.
+
+### Review counts, hours and reviews
+
+Signed out, Google gives a browser whose user agent says `HeadlessChrome` its "limited view": no
+review counts, today's opening hours only, no reviews. The engine runs Chrome headless, so it sends
+that Chrome's own user agent with `HeadlessChrome` replaced by `Chrome` (same OS and version; nothing
+else is changed). Google then returns (checked live on macOS, Linux, Windows and in Docker on
+2026-10-31; Google can change this at any time) `review_count`, the week's `open_hours` (as JSON like
+`{"Monday": ["7 AM–9 PM"], ...}`) and `reviews_link`, with or without Docker and with the downloaded
+headless shell too. `--min-reviews` filters on the counts. Google can still leave a field out; if
+every count is missing, the script warns and skips that filter rather than dropping every row.
+
+Review texts come through the raw API: set `"reviews_max"` (0 to 5) in the job body. The engine opens
+each place's panel, one page load per place. It fills `user_reviews` (a JSON list of
+`{"Rating", "When", "Description"}`; reviewer names and photos are left out) and
+`reviews_per_rating` (`{"1": n, ... "5": n}`). From the terminal: `scripts/scrape.py --reviews 3`
+adds both columns to the 8 lead fields.
+
+Business photo URLs from search results are included in the `images` column without additional
+page loads. Use `--full` to keep that column in CLI output. Photos are linked, not downloaded.
+
+Rather not change the user agent? Set `SCRAPER_HEADLESS=0` in `.env` and restart with
+`python3 scripts/engine.py restart`: Chrome then runs as a normal window placed off-screen, with its
+user agent unchanged, and gets the same data. A window needs a display (not Docker, not a server
+without one) and an installed Chrome, Chromium, Edge or Brave (the downloaded headless shell cannot
+open one). On macOS a second Chrome icon shows in the Dock and the window may take focus when a job
+starts.
+
+---
+
+### Optional website rendering (Playwright)
+
+The standard HTTP email/social crawl needs no pip dependencies. For websites that need JavaScript,
+or return no useful email/social links over HTTP, install the optional renderer in a virtual
+environment. It uses the Chrome/Chromium already installed for the kit, with no additional browser
+download.
+
+```bash
+python3 -m venv .engine/playwright-venv
+source .engine/playwright-venv/bin/activate
+python -m pip install -r requirements-browser.txt
+python scripts/scrape.py "coffee shops in Austin TX" --depth 1 --browser-sites
+```
+
+On Windows, use `py -m venv .engine/playwright-venv`, activate with
+`.engine\playwright-venv\Scripts\Activate.ps1`, then use `python` for the remaining commands.
+
+- CLI: `--browser-sites` retries pages where the requested emails or social links were not found.
+  Email extraction also tries rendered contact/about pages when needed. Social profiles are links
+  found on business websites; social networks themselves are not crawled.
+- API: use `"browser_sites": true` with `email` and/or `socials`. Start the engine using the same
+  virtual environment's Python so it can import Playwright. The API website pass reads homepages.
+- Web UI: select **Render websites (Playwright)**. Missing optional dependencies are reported before
+  a job starts. The stock Docker image does not install this optional package.
+- HTTP lookups finish before browser retries, so slow retries never occupy HTTP worker slots.
+  At most two browser retries run concurrently. Each page gets at most 20 seconds; the CLI shares
+  a 30-second browser budget between emails, contact pages and socials. The API also caps retries
+  at 30 seconds or its remaining website-pass time, whichever is less. Each run or job starts one
+  browser and opens every page in a fresh context in it; closing it takes at most about 5 seconds.
+  Once exhausted, remaining retries report `budget_exhausted` rather than adding
+  more page waits. Retries also skip when less than three seconds remain for browser startup.
+  Slow third-party scripts do not discard an already usable page: rendering uses bounded DOM and
+  contact-content waits. Pages block image/media/font downloads.
+- `website_fetch_status` records `http`, `rendered`, `blocked`, `timeout`, `budget_exhausted` or `error`.
+  It keeps the best fetch: `rendered` beats `http`, and a failed or skipped browser retry leaves
+  `http` in place. `timeout` means the HTTP fetch itself ran out of time. A rendered page
+  may contain no published contact information. Authentication, CAPTCHA and access denials can
+  remain unavailable; the renderer does not solve them.
+
+Checks: `python engine/test_website_browser.py` runs offline. With Playwright installed,
+`GMSKIT_BROWSER_LIVE=1 python engine/test_website_browser.py` also renders a local JavaScript fixture
+and checks blocked/private redirects. Reference: https://playwright.dev/python/docs/library .
+
+
+## 4. Run it from Claude Code or another agent
+
+The kit ships a Claude Code skill that teaches the agent to run `scripts/scrape.py` for every scrape,
+what the output holds, and the guardrails. It works with Claude Code, Codex, Cursor and any other
+[Agent Skills](https://agentskills.io)-compatible tool. In this folder (Option A) two files do the work;
+`npx skills add` (Option B) installs only the second:
+
+1. **[CLAUDE.md](CLAUDE.md)** loads automatically when you open this folder in Claude Code. It tells
+   the agent what the kit is and its key rules.
+2. **[.claude/skills/google-maps-scraper/SKILL.md](.claude/skills/google-maps-scraper/SKILL.md)** is
+   the skill. The agent loads it on demand for the script's flags and the best practices.
+
+There is nothing to connect. The engine is a local HTTP API at `http://localhost:8080`, and the agent
+drives it through the kit's own scripts with its normal shell access.
+
+**Option A: open the folder in Claude Code.** The skill and four slash commands load automatically.
+
+```bash
+cd google-maps-scraper-kit
+claude            # start Claude Code inside this folder
+```
+
+**Option B: install the skill into an agent you already use.**
+
+```bash
+npx skills add mahanaicoach/google-maps-scraper-kit
+```
+
+The engine ships with the kit, so with Option B install the kit too (step 1) and start the engine
+(step 2), or the agent asks you to.
+
+Then ask in plain language:
+> "Make sure the scraper is running, then scrape **dentists in Denver CO**, depth 5, and give me a table of name, phone, website."
+
+The agent checks the engine is up and starts it if not. It then runs `scripts/scrape.py` in the
+background, which creates the job, waits for it and saves the file, and hands you clean rows. It
+follows the skill's safety rules on every run.
+
+> **MCP is optional.** You can wrap the API as a Model Context Protocol server, but a local,
+> single-user setup does not need one. The skill and the local API do the same job with less setup.
+
+### Slash commands
+
+Claude Code also offers these commands. Type `/` to see them:
+
+| Command | What it does |
+|---|---|
+| `/scrape <business> in <city, ST> [depth]` | Run a scrape, get a clean table |
+| `/scrape-batch <keywords-file> [--city "City, ST"]` | Scrape many queries in one job |
+| `/scrape-setup` | Start the scraper + health check |
+| `/scrape-jobs [list \| delete <id>]` | List or delete jobs |
+
+Plain requests work too: *"scrape gyms in Miami with phone numbers."* The kit's own scripts, the exact
+`docker compose` forms this guide uses are pre-approved in
+`.claude/settings.json`; everything else asks as usual.
+
+---
+
+## 5. Stop and clean up
+
+Without Docker:
+```bash
+python3 scripts/engine.py stop   # jobs and results stay in .engine/data
+```
+To remove everything the engine kept (jobs, results, its log and a downloaded Chrome), stop it and
+delete the `.engine` folder. To uninstall the native engine completely, run
+`python3 scripts/engine.py stop`, then delete the kit folder. Its jobs live in `.engine/` inside it,
+and so does a downloaded Chrome for Testing.
+
+With Docker:
+```bash
+docker compose stop      # pause (keeps data + image)
+docker compose down      # stop + remove container (keeps the data volume)
+docker compose down -v   # ALSO delete the jobs and results volume (full reset)
+docker compose down -v --rmi local   # full uninstall: also delete the ~1.2 GB engine image
+```
+
+`down -v` leaves the engine image on disk. For a full uninstall run `docker compose down -v --rmi local`,
+then delete the kit folder.
+
+Results pile up. Delete old jobs with the web UI's Delete button (it asks you to confirm), or:
+```bash
+python3 scripts/engine.py jobs              # ids, newest first
+python3 scripts/engine.py delete <job-id>
+```
+
+---
+
+## 6. Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `curl: connection refused` on :8080, or `Scraper not reachable` | The engine is not running. `python3 scripts/engine.py start` (or `docker compose up -d`), then `python3 scripts/engine.py status`. |
+| `✗ Port 8080 is in use` from `engine.py start` | Something else holds the port, often kit 1.x's Docker engine. Stop it (`docker compose stop` in that copy's folder), or run `cp .env.example .env` (skip it if you already have a `.env`), set `SCRAPER_PORT=8081` in it and start again. |
+| `Cannot connect to the Docker daemon` / `docker: command not found` | Docker Desktop is not running (or not installed). Open Docker Desktop, wait until its whale icon stops animating, then run `docker compose up -d` again. Or use the engine without Docker (§2 A). |
+| `Empty reply from server` or `Connection reset` right after `docker compose up -d` | The engine is still starting, a few seconds. The scripts wait for it; in the browser, reload the page. |
+| `Permission denied` running `./scripts/scrape.sh` | The file lost its execute bit (a ZIP download does that). Run `bash scripts/scrape.sh …` instead. |
+| `port is already allocated`, or Docker Desktop's `ports are not available: ... address already in use`, or something else already uses 8080 | Just updated from kit 1.x and an old container still holds it? Run `docker compose down --remove-orphans`, then `docker compose up -d`, in the kit folder. Otherwise run `cp .env.example .env` (skip it if you already have a `.env`), set `SCRAPER_PORT=8081` in it, then start the engine again (`python3 scripts/engine.py restart` or `docker compose up -d`). The engine, Compose and both scripts read the same file, so nothing else needs editing. With Docker the port inside the container stays 8080 (do not change the right-hand side of the mapping). If your `.env` still has a `SCRAPER_BASE_URL` line, delete it or update its port: it overrides `SCRAPER_PORT`. The slash commands and the skill show `localhost:8080` in their examples. Claude first runs `python3 scripts/engine.py status`, which reads the port from `.env`, is pre-approved on any port and prints the URL to use. **A second copy of the kit on the same machine** (a fork next to the original, a test clone): change `SCRAPER_PORT` in its `.env`. Without Docker that is all, because each copy keeps its own `.engine/` folder. With Docker, also set `COMPOSE_PROJECT_NAME` to a name nobody else uses (`docker compose ls` lists them), as `.env.example` shows; with the default name, `docker compose up -d` takes over the other copy's container. |
+| `422 missing max time` | Job body needs `max_time` (in **seconds**, e.g. `300`). |
+| `422 missing geo coordinates` | Only one of `lat` and `lon` was sent. Send both, as **strings** (e.g. `"30.2672"`), or neither. With neither, Google places the search by the place named in the keyword ("coffee shops in Austin TX"). |
+| `422 missing name` / `422 missing lang` | Job body needs `name` (any label) and `lang` (`"en"`). Four fields are required: `name`, `keywords`, `lang`, `max_time`. Send `lat` and `lon` together or not at all; both are recommended because they centre the map precisely. |
+| `422 invalid proxy: Chrome cannot log in to a SOCKS5 proxy` | Chrome takes no username and password on SOCKS5. Use the provider's `http://user:pass@host:port` address (URL-encode special characters), or a SOCKS5 proxy that allows your IP address. |
+| A job `failed` | Its `Error` says why: the web UI shows it under the job name, and `scripts/scrape.py` prints it, and retries once after 60 s unless a retry cannot help. `Chrome cannot start … error while loading shared libraries`: run the `apt-get install` line in the message. `No Chrome, Chromium, Edge or Brave found`: run `python3 scripts/engine.py start`, which downloads one. `unusual-traffic page`: Google is rate-limiting your IP. The engine already waited and retried the keyword (`Waited and retried N time(s)`) and kept the rows found before that; wait, or add proxies. An error with `ERR_PROXY`, `ERR_SOCKS` or `ERR_TUNNEL`: the proxy is wrong or down. `proxy login refused: the proxy answered 407 to its username and password`: the proxy's username or password is wrong; `scripts/scrape.py` does not retry it. `the engine stopped while this job ran`: the engine crashed or was killed during this job more than 3 times; the rows it found are kept. |
+| `The engine says: stopped at max_time` | The job ran out of time and kept the rows it had. Raise `--max-time` (seconds, default 600) or lower `--depth`. |
+| `website(s) not checked: ran out of time` or `reviews read for N of M places: ran out of time` | A raw-API job's website or reviews pass stopped at the job's time limit; the rows are complete, those columns are not. Raise `max_time`. |
+| `--min-reviews ignored` | Google returned no review counts for this run. The filter is skipped to avoid dropping every row; inspect the engine log and use `--min-rating` if needed. |
+| Scrapes feel slow | Google Maps itself is quick: a depth 2 search takes about 5 seconds. Most of a run is the email crawl, which checks every business website, 16 at a time. `--no-email` skips it. The web UI's email option reads homepages only. |
+| Empty CSV | Keyword too narrow or wrong coordinates. Check `lat`/`lon` (latitude first) and try a broader keyword. |
+| Docker build is slow | Normal on the first run: it downloads Python and Chromium once, then caches them. |
+| `docker: 'compose' is not a docker command` / `unknown shorthand flag: 'd'` | The Compose plugin is missing. It ships with Docker Desktop — uninstalling Desktop leaves a **dangling symlink** in `~/.docker/cli-plugins/` that looks installed but isn't (`ls -l ~/.docker/cli-plugins/docker-compose`). Install it (`brew install docker-compose`), or skip Docker and use §2 A. |
+| `no space left on device` while building | The **VM's** disk is full, not your Mac's — Colima/Lima/Docker Desktop each run a fixed-size virtual disk. Check with `docker system df`, reclaim with `docker image prune -a`, or grow the disk (Colima: `colima stop && colima start --disk 60`). The image bundles Chromium, so budget a few GB. |
+
+### Upgrading from kit 1.x
+
+`bash scripts/update.sh` takes a 1.x copy to the own engine. It pulls the new kit and, when the old
+Docker engine is running, runs `docker compose up -d --build --remove-orphans`: Compose removes 1.x's two containers (the
+engine and its `ui` web front), builds the new image (a few minutes the first time) and starts it on
+the same port. By hand: `git pull`, then `docker compose up -d --build` in the kit folder.
+
+Nothing is lost:
+
+- The CSVs you downloaded are your own files; the update does not touch them.
+- The jobs in 1.x's web UI come along. On its first start the new engine reads 1.x's job volume
+  (read-only) and lists those jobs with their CSVs; a job 1.x had not finished shows as `failed`,
+  with its rows, and a job that never produced a CSV is left out. This happens once, so a job you
+  delete afterwards stays deleted; a job whose data cannot be read is skipped, and the engine's log
+  names its id (`docker compose logs`).
+- The old volume itself is kept as it was. Once you no longer need it, free its disk space:
+  `docker compose down`, then `docker volume rm` with the name `docker volume ls` shows ending in
+  `_gmaps_data`, then `docker compose up -d` (Compose creates an empty one in its place).
+
+Moving to the engine without Docker (§2 A) as well? Download the old jobs' CSVs from the web UI
+first: that engine keeps its own jobs in `.engine/` and never sees Docker's volumes.
+
+What changed inside the columns (their names and order are the same):
+
+- `user_reviews` and `reviews_per_rating` are filled only on request (`--reviews N`, or `reviews_max`
+  in the job body), and a review holds `Rating`, `When` and `Description`: no reviewer name, photo
+  or profile link.
+- `about` holds what Google sends with each listing: usually only the accessibility group, and
+  sometimes more (payments, parking). The engine does not open a place's About tab, so
+  `credit_cards_accepted` is usually empty.
+- `plus_code` is the 10-digit global code computed from the coordinates (for example `8FVC2222+22`);
+  1.x had Google's short code and the town's name. Both point to the same spot.
+- `link` is Google's documented place URL (`https://www.google.com/maps/search/?api=1&query=…&query_place_id=…`)
+  instead of a `/maps/place/…` URL.
+- `status` is the open state (`Open · Closes 9 PM`); 1.x often held a short editorial line there.
+- `order_online` holds the listing's order or booking links (for dentists, appointment booking).
+  Table bookings are in `reservations`, where 1.x sometimes listed them twice.
+- `owner` stays empty: it named the Google account behind a listing, often a person.
+  `popular_times`, `street_view_url` and `user_reviews_extended` stay empty too; Google sends no
+  popular times to either engine at the moment. So do `price_range` and `menu`: Google's search
+  results carry no price range or menu link at the moment.
+- In the CSV download and the script's CSV file, a cell that a spreadsheet would run as a formula (it
+  starts with `=`, `+`, `-`, `@` or a tab and is not a phone number) starts with `'`. `?format=json`
+  has the text as scraped, and `scripts/scrape.py` removes the `'` when it reads a CSV back
+  (`--exclude`).
+
+---
+
+## 7. Best practices
+
+The skill holds the full rules. These are the essentials:
+- Run every scrape through `scripts/scrape.py` (`--city` or `<lat> <lon>`, `--max-time` in seconds).
+- Start at `depth 5` and run one job at a time. Raise depth only when needed.
+- Keep email extraction on, the default, because emails are the key lead field. Use `--no-email` for a
+  faster run without them.
+- Add proxies for big jobs. With several, the keywords take turns, and a keyword Google refuses is
+  retried through the next one.
+- Never commit result files. They are git-ignored for you.
+- Changed something? `python3 scripts/test_scrape.py` and `python3 engine/test_engine.py` run the
+  offline checks, with no engine, no network and no Chrome. `scripts/test_scrape.py` takes seconds and
+  `engine/test_engine.py` about one to two minutes.

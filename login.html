@@ -403,6 +403,7 @@
               return;
             }
 
+            localStorage.removeItem('citymap_places_data_v3');
             showAlert('Login realizado com sucesso! Carregando mapa...', 'success');
             setTimeout(() => {
               window.location.href = 'index.html';
