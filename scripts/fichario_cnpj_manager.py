@@ -44,26 +44,48 @@ HEADERS_SUPABASE = {
 
 # CNAEs mais relevantes para maquininhas e vendas B2B em Franca/SP
 CNAE_PRESETS = {
-    "alto_ticket": [
-        {"codigo": "4774-1/00", "nome": "Óticas e Artigos de Óptica"},
+    "saude": [
         {"codigo": "8630-5/04", "nome": "Clínicas Odontológicas"},
         {"codigo": "9602-5/02", "nome": "Clínicas de Estética VIP e Cuidados Corporais"},
+        {"codigo": "8630-5/03", "nome": "Atividade Médica Ambulatorial e Consultórios"},
+        {"codigo": "8630-5/06", "nome": "Serviços de Vacinação e Imunização Humana"}
+    ],
+    "tech_joias": [
+        {"codigo": "4774-1/00", "nome": "Óticas e Artigos de Óptica"},
+        {"codigo": "4783-1/01", "nome": "Joalherias e Relojoarias"},
+        {"codigo": "4752-1/00", "nome": "Celulares, Smartphones e Assistência Técnica"},
+        {"codigo": "4751-2/01", "nome": "Equipamentos e Suprimentos de Informática"}
+    ],
+    "auto_moveis": [
+        {"codigo": "4754-7/01", "nome": "Lojas de Móveis Planejados e Colchões"},
+        {"codigo": "4520-0/01", "nome": "Oficinas Mecânicas e Auto Centers"},
+        {"codigo": "4530-7/05", "nome": "Lojas de Pneus e Rodas (Pneumáticos)"},
+        {"codigo": "4530-7/03", "nome": "Autopeças e Acessórios Veiculares"}
+    ],
+    "moda": [
+        {"codigo": "4781-4/00", "nome": "Lojas de Vestuário e Boutiques"},
+        {"codigo": "4782-2/01", "nome": "Lojas de Calçados de Alto Padrão"}
+    ],
+    "alto_ticket": [
+        {"codigo": "8630-5/04", "nome": "Clínicas Odontológicas"},
+        {"codigo": "9602-5/02", "nome": "Clínicas de Estética VIP e Cuidados Corporais"},
+        {"codigo": "4774-1/00", "nome": "Óticas e Artigos de Óptica"},
         {"codigo": "4783-1/01", "nome": "Joalherias e Relojoarias"},
         {"codigo": "4752-1/00", "nome": "Celulares, Smartphones e Assistência Técnica"},
         {"codigo": "4754-7/01", "nome": "Lojas de Móveis Planejados e Colchões"},
         {"codigo": "4520-0/01", "nome": "Oficinas Mecânicas e Auto Centers"},
         {"codigo": "4530-7/05", "nome": "Lojas de Pneus e Rodas (Pneumáticos)"},
-        {"codigo": "4530-7/03", "nome": "Autopeças e Acessórios Veiculares"},
-        {"codigo": "4782-2/01", "nome": "Lojas de Calçados de Alto Padrão"},
         {"codigo": "4781-4/00", "nome": "Lojas de Vestuário e Boutiques"},
+        {"codigo": "4782-2/01", "nome": "Lojas de Calçados de Alto Padrão"}
     ],
     "alimentacao": [
-        {"codigo": "5611-2/01", "nome": "Restaurantes e Similares"},
+        {"codigo": "5611-2/01", "nome": "Restaurantes e Churrascarias"},
         {"codigo": "5611-2/02", "nome": "Bares e Choperias"},
         {"codigo": "5611-2/03", "nome": "Lanchonetes e Casas de Sucos"},
         {"codigo": "4723-7/00", "nome": "Adegas e Comércio de Bebidas"},
+        {"codigo": "4722-9/01", "nome": "Açougues e Casas de Carnes"},
         {"codigo": "4721-1/02", "nome": "Padarias e Confeitarias"},
-        {"codigo": "4712-1/00", "nome": "Mercados de Bairro e Mercearias"},
+        {"codigo": "4712-1/00", "nome": "Mercados de Bairro e Mercearias"}
     ]
 }
 
@@ -101,7 +123,7 @@ class FicharioManager:
         self.total_api_calls = 0
 
     def load_existing_leads(self):
-        """Carrega leads já existentes no banco para checagem cruzada"""
+        """Carrega leads já existentes no banco e base local de CNPJs para checagem cruzada"""
         print(f"📡 Carregando leads existentes do Supabase...")
         try:
             all_leads = []
@@ -130,6 +152,20 @@ class FicharioManager:
                     self.existing_leads = json.load(f)
                 print(f"✔ {len(self.existing_leads)} leads carregados do arquivo local.")
 
+        # Carregar CNPJs já coletados anteriormente para evitar re-consultas redundantes
+        self.already_collected_cnpjs = set()
+        local_cnpj_path = os.path.join(os.path.dirname(__file__), "..", "data", "cnpj-leads.json")
+        if os.path.exists(local_cnpj_path):
+            try:
+                with open(local_cnpj_path, "r", encoding="utf-8") as f:
+                    for it in json.load(f):
+                        c = clean_digits(it.get("cnpj"))
+                        if c:
+                            self.already_collected_cnpjs.add(c)
+                print(f"✔ {len(self.already_collected_cnpjs)} CNPJs já catalogados em histórico anterior.")
+            except Exception as e:
+                print(f"Aviso ao ler histórico de CNPJs: {e}")
+
         # Índices em memória para matching rápido
         for l in self.existing_leads:
             lid = l.get("id")
@@ -153,11 +189,45 @@ class FicharioManager:
                 })
 
     def fetch_cnpj_list(self, cnae_code, limit=50):
-        """Busca lista de CNPJs por CNAE no Fichário (usando código limpo)"""
+        """Busca lista de CNPJs por CNAE no Fichário (com exportação rápida CSV e fallback JSON)"""
         cnae_digits = clean_digits(cnae_code)
         print(f"\n🔍 Consultando Fichário para CNAE {cnae_code} ({cnae_digits}) em {self.cidade}/{self.uf}...")
-        url = f"{FICHARIO_BASE_URL}/busca-avancada?cidade={urllib.parse.quote(self.cidade)}&uf={self.uf}&cnae={cnae_digits}&por_pagina={min(limit, 100)}"
         
+        # 1. Tentativa via exportação CSV em massa (traz até 1.000 empresas em 1 única requisição)
+        csv_url = f"{FICHARIO_BASE_URL}/busca-avancada?cidade={urllib.parse.quote(self.cidade)}&uf={self.uf}&cnae={cnae_digits}&formato=csv"
+        req = urllib.request.Request(csv_url, headers=HEADERS_FICHARIO)
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                self.last_remaining = int(resp.headers.get("X-RateLimit-Remaining", 60))
+                self.last_reset = float(resp.headers.get("X-RateLimit-Reset", 0))
+                self.total_api_calls += 1
+                content = resp.read().decode('utf-8', errors='ignore')
+                import csv, io
+                reader = csv.DictReader(io.StringIO(content), delimiter=';')
+                rows = list(reader)
+                if rows:
+                    print(f"✔ [Descoberta Rápida]: {len(rows)} empresas encontradas no CNAE {cnae_code}.")
+                    resultados = []
+                    for r in rows:
+                        cnpj_num = clean_digits(r.get("cnpj"))
+                        if cnpj_num:
+                            resultados.append({
+                                "cnpj": cnpj_num,
+                                "razao_social": r.get("razao_social", ""),
+                                "nome_fantasia": r.get("nome_fantasia", ""),
+                                "porte": r.get("porte", "Demais"),
+                                "capital_social": r.get("capital_social", "0"),
+                                "data_abertura": r.get("data_abertura", ""),
+                                "telefone": r.get("telefone", ""),
+                                "natureza_juridica": r.get("natureza_juridica", ""),
+                                "faixa_receita_estimada": r.get("faixa_receita_estimada", "")
+                            })
+                    return resultados
+        except Exception as e:
+            print(f"⚠️ Exportação CSV indisponível ou limitada ({e}). Tentando endpoint JSON...")
+
+        # 2. Fallback JSON tradicional
+        url = f"{FICHARIO_BASE_URL}/busca-avancada?cidade={urllib.parse.quote(self.cidade)}&uf={self.uf}&cnae={cnae_digits}&por_pagina={min(limit, 100)}"
         req = urllib.request.Request(url, headers=HEADERS_FICHARIO)
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
@@ -167,7 +237,7 @@ class FicharioManager:
                 data = json.loads(resp.read().decode())
                 resultados = data.get("resultados", [])
                 total = data.get("total", len(resultados))
-                print(f"✔ Encontradas {total} empresas registradas. Selecionando lote de {min(len(resultados), limit)}...")
+                print(f"✔ Encontradas {total} empresas registradas via JSON. Selecionando lote de {min(len(resultados), limit)}...")
                 return resultados[:limit]
         except Exception as e:
             print(f"❌ Erro ao consultar CNAE {cnae_code}: {e}")
@@ -323,9 +393,19 @@ class FicharioManager:
                 if r.get("cnpj"):
                     existing[r["cnpj"]] = r
             merged_list = list(existing.values())
+            
+            # Reavaliar clusters de CNPJs fantasmas em toda a base consolidada
+            self.detect_ghost_clusters(merged_list, threshold=3)
+            
             with open(local_path, "w", encoding="utf-8") as f:
                 json.dump(merged_list, f, ensure_ascii=False, indent=2)
             print(f"✔ Backup local consolidado ({len(merged_list)} CNPJs salvos) em: {local_path}")
+
+            # Atualiza também data/cnpj-leads.js para o frontend
+            js_path = os.path.join(os.path.dirname(__file__), "..", "data", "cnpj-leads.js")
+            with open(js_path, "w", encoding="utf-8") as f:
+                f.write("window.DEFAULT_CNPJ_DATA = " + json.dumps(merged_list, ensure_ascii=False) + ";")
+            print(f"✔ Arquivo data/cnpj-leads.js atualizado para o frontend!")
         except Exception as e:
             print(f"Erro ao salvar backup local: {e}")
 
@@ -395,7 +475,9 @@ class FicharioManager:
                 if not clean_c:
                     continue
 
-                # Evitar reprocessar na mesma sessão
+                # Evitar reprocessar na mesma sessão ou o que já foi catalogado anteriormente
+                if clean_c in self.already_collected_cnpjs:
+                    continue
                 if any(p["cnpj"] == clean_c for p in processed_cnpjs):
                     continue
 
@@ -544,7 +626,7 @@ class FicharioManager:
 def main():
     parser = argparse.ArgumentParser(description="Gerenciador de CNPJs da Receita Federal via Fichário")
     parser.add_argument("--cnae", type=str, help="Código de CNAE específico (ex: 4774-1/00 ou 5611-2/01)")
-    parser.add_argument("--segmento", type=str, choices=["alto_ticket", "alimentacao", "todos"], default="alto_ticket",
+    parser.add_argument("--segmento", type=str, choices=["saude", "tech_joias", "auto_moveis", "moda", "alto_ticket", "alimentacao", "todos"], default="alto_ticket",
                         help="Preset de segmentos com alto volume ou parcelamento")
     parser.add_argument("--limite", type=int, default=35, help="Quantidade máxima de empresas por CNAE")
     parser.add_argument("--tempo-minutos", type=float, default=5.0, help="Tempo total de execução em minutos utilizando o limite da API (padrão: 5)")

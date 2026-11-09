@@ -50,7 +50,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "49.228.653/0001-11",
+    "cnae": "5611-2/01",
+    "dataAbertura": "1978-07-11"
   },
   {
     "id": "gmap-ChIJ-f9PnSWmsJQROefr_gEnzH4",
@@ -392,7 +395,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "63.037.717/0001-28",
+    "cnae": "5611-2/01",
+    "dataAbertura": "1990-05-24"
   },
   {
     "id": "gmap-ChIJMUkjBaansJQRbf9tevxjFOc",
@@ -659,7 +665,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "02.565.157/0001-90",
+    "cnae": "5611-2/01",
+    "dataAbertura": "1998-05-27"
   },
   {
     "id": "gmap-ChIJuZHcB0WmsJQRikD2GHP1A7A",
@@ -1289,7 +1298,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "14.491.775/0001-11",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2011-10-14"
   },
   {
     "id": "gmap-ChIJuRPX0NansJQRqr3L4akIefk",
@@ -1501,7 +1513,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "30.912.319/0001-54",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2018-07-12"
   },
   {
     "id": "gmap-ChIJLTKemDCmsJQRBr5mlhw9ruk",
@@ -2075,7 +2090,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "50.685.335/0001-69",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2023-05-16"
   },
   {
     "id": "gmap-ChIJFfhftk-msJQRecTLWbw4bFc",
@@ -2389,7 +2407,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "34.098.949/0001-98",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2019-07-03"
   },
   {
     "id": "gmap-ChIJmzXQ_8CnsJQRbkiHuSTiZ3g",
@@ -3145,7 +3166,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "08.737.640/0001-90",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2007-03-22"
   },
   {
     "id": "gmap-ChIJzRc6mG2nsJQRO55BmUrL7Co",
@@ -3803,7 +3827,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "55.070.297/0001-53",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2024-05-09"
   },
   {
     "id": "gmap-ChIJcYh_GuGnsJQRu7nZhm4EDKU",
@@ -4588,7 +4615,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "30.132.838/0001-08",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2018-04-06"
   },
   {
     "id": "gmap-ChIJG6aenTumsJQRhrPnChlv3LU",
@@ -7132,7 +7162,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "49.228.877/0001-23",
+    "cnae": "5611-2/01",
+    "dataAbertura": "1978-07-04"
   },
   {
     "id": "gmap-ChIJ727GqMunsJQRpygaDrb0ESE",
@@ -8182,7 +8215,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "09.611.669/0242-98",
+    "cnae": "4781-4/00",
+    "dataAbertura": "2024-10-04"
   },
   {
     "id": "gmap-ChIJ9Q1VXACnsJQRRmW5M5O8Xfc",
@@ -16045,7 +16081,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": true
+    "isHighTicket": true,
+    "cnpj": "21.271.921/0001-69",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2014-10-22"
   },
   {
     "id": "gmap-ChIJz8QPg_unsJQRbTZNmmBLjSs",
@@ -16414,7 +16453,10 @@
     "isHighTurnover": true,
     "isChain": false,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "56.226.820/0001-50",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2024-08-02"
   },
   {
     "id": "gmap-ChIJvcn4-Y2osJQRULwvATIER4U",
@@ -18335,7 +18377,10 @@
     "isHighTurnover": true,
     "isChain": true,
     "crmStatus": "lead",
-    "isHighTicket": false
+    "isHighTicket": false,
+    "cnpj": "66.612.615/0003-49",
+    "cnae": "5611-2/01",
+    "dataAbertura": "2006-11-27"
   },
   {
     "id": "gmap-ChIJi5HTDACpsJQR4Wazh7tzZn8",
@@ -19571,7 +19616,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "36.258.898/0001-40",
+    "cnae": "8630-5/04",
+    "dataAbertura": "2020-02-05"
   },
   {
     "id": "gmap-ChIJQ9ak_CunsJQRQH4uC8NDfjE",
@@ -19662,7 +19710,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "27.689.391/0001-50",
+    "cnae": "8630-5/04",
+    "dataAbertura": "2017-05-05"
   },
   {
     "id": "gmap-ChIJ0cOJDsOnsJQRBykKBdkXlho",
@@ -20056,7 +20107,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "09.092.421/0001-64",
+    "cnae": "8630-5/04",
+    "dataAbertura": "2007-08-23"
   },
   {
     "id": "gmap-ChIJ5chlhu6nsJQRcv_M6J4OvMw",
@@ -20359,7 +20413,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "17.150.994/0001-25",
+    "cnae": "8630-5/04",
+    "dataAbertura": "2012-11-08"
   },
   {
     "id": "gmap-ChIJVVXhiDCmsJQRLpzqyGvH_sI",
@@ -20390,7 +20447,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "11.282.963/0001-41",
+    "cnae": "8630-5/04",
+    "dataAbertura": "2009-10-19"
   },
   {
     "id": "gmap-ChIJG8igHf-nsJQRa461HCw9C94",
@@ -20514,7 +20574,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "62.215.822/0001-47",
+    "cnae": "8630-5/04",
+    "dataAbertura": "2025-08-13"
   },
   {
     "id": "gmap-ChIJV7_sAqynsJQRPoFZ_ymAk1U",
@@ -21550,7 +21613,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "27.646.286/0001-33",
+    "cnae": "8630-5/04",
+    "dataAbertura": "2017-05-03"
   },
   {
     "id": "gmap-ChIJT-mpYNunsJQRDGfElUVuWn8",
@@ -22496,7 +22562,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "51.814.226/0001-67",
+    "cnae": "8630-5/04",
+    "dataAbertura": "1982-05-06"
   },
   {
     "id": "gmap-ChIJs_jhu2mnsJQR34au9Nq6xs0",
@@ -22647,7 +22716,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "40.159.636/0001-03",
+    "cnae": "9602-5/02",
+    "dataAbertura": "2020-12-18"
   },
   {
     "id": "gmap-ChIJxY2IdH2psJQR6KZhOxBYrT0",
@@ -22824,7 +22896,10 @@
     "isHighTurnover": false,
     "isHighTicket": false,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "09.364.610/0001-49",
+    "cnae": "9602-5/02",
+    "dataAbertura": "2008-01-18"
   },
   {
     "id": "gmap-ChIJFwnnSlumsJQRSQbwz70Fq64",
@@ -23573,7 +23648,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "08.845.676/0167-87",
+    "cnae": "9602-5/02",
+    "dataAbertura": "2021-02-16"
   },
   {
     "id": "gmap-ChIJX01T9jGnsJQRE8Dfs26bPfs",
@@ -23693,7 +23771,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "15.582.819/0001-81",
+    "cnae": "9602-5/02",
+    "dataAbertura": "2012-05-18"
   },
   {
     "id": "gmap-ChIJg2DXhTymsJQRnwCim5cxgOg",
@@ -24383,7 +24464,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "14.878.772/0001-35",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2012-01-13"
   },
   {
     "id": "gmap-ChIJ-zKmGDCmsJQRYM8as_fv-Zw",
@@ -24599,7 +24683,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "01.222.260/0001-74",
+    "cnae": "4774-1/00",
+    "dataAbertura": "1996-05-24"
   },
   {
     "id": "gmap-ChIJH8TYCY-nsJQRFyFSJIFi8nY",
@@ -24630,7 +24717,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "15.114.247/0001-06",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2012-02-13"
   },
   {
     "id": "gmap-ChIJa1A6yaWnsJQRqx1L14-Sheo",
@@ -24693,7 +24783,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "14.632.084/0001-90",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2011-10-06"
   },
   {
     "id": "gmap-ChIJhfLgPy6msJQRaqgE7hGcF1E",
@@ -24877,7 +24970,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "07.013.464/0001-81",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2004-09-16"
   },
   {
     "id": "gmap-ChIJh2WaUFGnsJQRXQQgaDGE75A",
@@ -24968,7 +25064,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "67.012.887/0001-09",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2026-05-26"
   },
   {
     "id": "gmap-ChIJ5VUK5CamsJQRUVSR5LzdIQs",
@@ -25061,7 +25160,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "17.534.532/0001-01",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2013-01-29"
   },
   {
     "id": "gmap-ChIJa9dS2cmnsJQRpw1ZNDhqLcA",
@@ -25091,7 +25193,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "68.340.612/0001-67",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2026-07-23"
   },
   {
     "id": "gmap-ChIJ3ZpO9S-msJQR0R9YE4fwXlc",
@@ -25241,7 +25346,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "02.699.024/0001-06",
+    "cnae": "4774-1/00",
+    "dataAbertura": "1998-08-19"
   },
   {
     "id": "gmap-ChIJBWjRNE2msJQRooHyt9REqKA",
@@ -25272,7 +25380,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "08.472.832/0001-12",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2006-11-27"
   },
   {
     "id": "gmap-ChIJ_c9pQC6nsJQRTG7o3uV3w2w",
@@ -25544,7 +25655,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "30.925.755/0001-68",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2018-07-13"
   },
   {
     "id": "gmap-ChIJddN4s26nsJQRPbmAAK-2ozk",
@@ -25574,7 +25688,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "59.706.226/0001-55",
+    "cnae": "4774-1/00",
+    "dataAbertura": "1988-11-09"
   },
   {
     "id": "gmap-ChIJ97auE3ensJQRPUjAt2DS3TY",
@@ -25634,7 +25751,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "28.661.240/0001-56",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2017-09-18"
   },
   {
     "id": "gmap-ChIJR8IMF3mnsJQRaYu_Urnle-Q",
@@ -25818,7 +25938,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "42.724.471/0001-92",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2021-07-15"
   },
   {
     "id": "gmap-ChIJO-C_wROmsJQRUpaiBfK9D9g",
@@ -25847,7 +25970,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "19.728.122/0001-27",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2014-02-17"
   },
   {
     "id": "gmap-ChIJ6VJ4zzKnsJQRl5RtBxPpMU4",
@@ -25938,7 +26064,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "16.875.955/0002-03",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2013-12-03"
   },
   {
     "id": "gmap-ChIJWwiXYACnsJQRgH6W7IHoAYY",
@@ -25997,7 +26126,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "07.013.464/0005-05",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2017-07-31"
   },
   {
     "id": "gmap-ChIJd-KD0bensJQRtEQzu2tcY2g",
@@ -26059,7 +26191,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "39.512.131/0001-93",
+    "cnae": "4774-1/00",
+    "dataAbertura": "2020-10-21"
   },
   {
     "id": "gmap-ChIJi8yWDNynsJQRKfQtl3HS_1s",
@@ -26186,7 +26321,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "33.608.960/0001-98",
+    "cnae": "4783-1/01",
+    "dataAbertura": "2019-05-14"
   },
   {
     "id": "gmap-ChIJuRPX0NansJQRMHKpTEaRgpo",
@@ -26277,7 +26415,10 @@
     "isHighTurnover": false,
     "isHighTicket": false,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "18.103.467/0001-22",
+    "cnae": "4783-1/01",
+    "dataAbertura": "2013-05-13"
   },
   {
     "id": "gmap-ChIJIUXtYsWnsJQRHxzaTFtsZAg",
@@ -26461,7 +26602,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "84.453.844/0585-00",
+    "cnae": "4783-1/01",
+    "dataAbertura": "2023-11-06"
   },
   {
     "id": "gmap-ChIJCyqskRWmsJQR9ZyVC2kA_X0",
@@ -27217,7 +27361,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "52.727.346/0001-90",
+    "cnae": "4783-1/01",
+    "dataAbertura": "2023-10-31"
   },
   {
     "id": "gmap-ChIJBXHPYx-msJQRzopX0k0mdSg",
@@ -29591,7 +29738,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": true,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "92.754.738/0169-13",
+    "cnae": "4781-4/00",
+    "dataAbertura": "2010-08-17"
   },
   {
     "id": "gmap-ChIJj_B5iyansJQRtD0fdrEItso",
@@ -30016,7 +30166,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "53.966.834/0017-80",
+    "cnae": "4781-4/00",
+    "dataAbertura": "1993-11-03"
   },
   {
     "id": "gmap-ChIJI5t9wzqmsJQR-R5cbH69x6M",
@@ -33322,7 +33475,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "14.697.188/0001-83",
+    "cnae": "4754-7/01",
+    "dataAbertura": "2011-11-10"
   },
   {
     "id": "gmap-ChIJ3SqJuyemsJQRHkn2GOUONVg",
@@ -34050,7 +34206,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "19.861.807/0001-47",
+    "cnae": "4754-7/01",
+    "dataAbertura": "2014-03-12"
   },
   {
     "id": "gmap-ChIJT_ueN3Yjha4Rx7ibhLtdymQ",
@@ -35293,7 +35452,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "41.607.675/0001-80",
+    "cnae": "4754-7/01",
+    "dataAbertura": "2021-04-16"
   },
   {
     "id": "gmap-ChIJVxl-sniosJQR26z7-fGkwTI",
@@ -35324,7 +35486,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "22.987.371/0001-41",
+    "cnae": "4754-7/01",
+    "dataAbertura": null
   },
   {
     "id": "gmap-ChIJNTwlwUimsJQR5W3IieC-Fvs",
@@ -35473,7 +35638,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "40.112.891/0001-92",
+    "cnae": "4754-7/01",
+    "dataAbertura": "2020-12-15"
   },
   {
     "id": "gmap-ChIJj6cqgjCnsJQR3hYVnq50m58",
@@ -35798,7 +35966,10 @@
     "isHighTurnover": true,
     "isHighTicket": true,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "34.278.644/0001-68",
+    "cnae": "4754-7/01",
+    "dataAbertura": "2019-07-22"
   },
   {
     "id": "gmap-ChIJXQXVeUWpsJQRWp8wYh8BZdo",
@@ -36058,7 +36229,10 @@
     "isHighTurnover": false,
     "isHighTicket": false,
     "isChain": false,
-    "crmStatus": "lead"
+    "crmStatus": "lead",
+    "cnpj": "30.234.628/0001-12",
+    "cnae": "4754-7/01",
+    "dataAbertura": "2018-04-18"
   },
   {
     "id": "gmap-ChIJU2Jz_ZOosJQRN2RYkAVvK08",
