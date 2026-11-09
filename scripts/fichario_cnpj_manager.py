@@ -47,12 +47,15 @@ CNAE_PRESETS = {
     "alto_ticket": [
         {"codigo": "4774-1/00", "nome": "Óticas e Artigos de Óptica"},
         {"codigo": "8630-5/04", "nome": "Clínicas Odontológicas"},
-        {"codigo": "4781-4/00", "nome": "Lojas de Vestuário e Roupas"},
-        {"codigo": "4782-2/01", "nome": "Lojas de Calçados"},
+        {"codigo": "9602-5/02", "nome": "Clínicas de Estética VIP e Cuidados Corporais"},
         {"codigo": "4783-1/01", "nome": "Joalherias e Relojoarias"},
+        {"codigo": "4752-1/00", "nome": "Celulares, Smartphones e Assistência Técnica"},
+        {"codigo": "4754-7/01", "nome": "Lojas de Móveis Planejados e Colchões"},
         {"codigo": "4520-0/01", "nome": "Oficinas Mecânicas e Auto Centers"},
+        {"codigo": "4530-7/05", "nome": "Lojas de Pneus e Rodas (Pneumáticos)"},
         {"codigo": "4530-7/03", "nome": "Autopeças e Acessórios Veiculares"},
-        {"codigo": "9602-5/02", "nome": "Clínicas de Estética e Cuidados Corporais"},
+        {"codigo": "4782-2/01", "nome": "Lojas de Calçados de Alto Padrão"},
+        {"codigo": "4781-4/00", "nome": "Lojas de Vestuário e Boutiques"},
     ],
     "alimentacao": [
         {"codigo": "5611-2/01", "nome": "Restaurantes e Similares"},
@@ -93,6 +96,9 @@ class FicharioManager:
         self.leads_by_cnpj = {}
         self.leads_by_phone = {}
         self.leads_by_name = []
+        self.last_remaining = 60
+        self.last_reset = 0
+        self.total_api_calls = 0
 
     def load_existing_leads(self):
         """Carrega leads já existentes no banco para checagem cruzada"""
@@ -147,32 +153,47 @@ class FicharioManager:
                 })
 
     def fetch_cnpj_list(self, cnae_code, limit=50):
-        """Busca lista de CNPJs por CNAE no Fichário"""
-        print(f"\n🔍 Consultando Fichário para CNAE {cnae_code} em {self.cidade}/{self.uf}...")
-        url = f"{FICHARIO_BASE_URL}/busca-avancada?cidade={urllib.parse.quote(self.cidade)}&uf={self.uf}&cnae={urllib.parse.quote(cnae_code)}&por_pagina={min(limit, 100)}"
+        """Busca lista de CNPJs por CNAE no Fichário (usando código limpo)"""
+        cnae_digits = clean_digits(cnae_code)
+        print(f"\n🔍 Consultando Fichário para CNAE {cnae_code} ({cnae_digits}) em {self.cidade}/{self.uf}...")
+        url = f"{FICHARIO_BASE_URL}/busca-avancada?cidade={urllib.parse.quote(self.cidade)}&uf={self.uf}&cnae={cnae_digits}&por_pagina={min(limit, 100)}"
         
         req = urllib.request.Request(url, headers=HEADERS_FICHARIO)
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
+                self.last_remaining = int(resp.headers.get("X-RateLimit-Remaining", 60))
+                self.last_reset = float(resp.headers.get("X-RateLimit-Reset", 0))
+                self.total_api_calls += 1
                 data = json.loads(resp.read().decode())
                 resultados = data.get("resultados", [])
                 total = data.get("total", len(resultados))
-                print(f"✔ Encontradas {total} empresas registradas. Processando primeiras {len(resultados)}...")
+                print(f"✔ Encontradas {total} empresas registradas. Selecionando lote de {min(len(resultados), limit)}...")
                 return resultados[:limit]
         except Exception as e:
             print(f"❌ Erro ao consultar CNAE {cnae_code}: {e}")
             return []
 
     def fetch_cnpj_details(self, cnpj):
-        """Consulta dossiê completo de um CNPJ (sócios, endereço, faturamento)"""
+        """Consulta dossiê completo de um CNPJ respeitando rate limits da API"""
         clean_c = clean_digits(cnpj)
         url = f"{FICHARIO_BASE_URL}/cnpj/{clean_c}"
         req = urllib.request.Request(url, headers=HEADERS_FICHARIO)
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                return json.loads(resp.read().decode())
-        except Exception as e:
-            return None
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    self.last_remaining = int(resp.headers.get("X-RateLimit-Remaining", 60))
+                    self.last_reset = float(resp.headers.get("X-RateLimit-Reset", 0))
+                    self.total_api_calls += 1
+                    return json.loads(resp.read().decode())
+            except urllib.error.HTTPError as e:
+                if e.code == 429:
+                    print("      ⏳ Rate limit atingido (HTTP 429). Aguardando 12s para reabertura da janela...")
+                    time.sleep(12)
+                else:
+                    return None
+            except Exception:
+                time.sleep(1)
+        return None
 
     def match_with_existing_lead(self, cnpj_clean, razao_social, nome_fantasia, telefone, endereco_logradouro):
         """Verifica se a empresa já existe no sistema para evitar duplicar"""
@@ -334,22 +355,41 @@ class FicharioManager:
             except Exception as e:
                 print(f"Aviso ao atualizar lead {lid}: {e}")
 
-    def run_import(self, cnaes, limit_per_cnae=30):
-        """Executa a importação completa"""
+    def run_import(self, cnaes, limit_per_cnae=35, max_runtime_seconds=300):
+        """Executa a importação completa respeitando limite de tempo e cota por minuto"""
         self.load_existing_leads()
 
+        start_time = time.time()
         processed_cnpjs = []
         enriched_leads = []
         total_matched = 0
         total_new = 0
 
+        target_mins = max_runtime_seconds / 60.0
+        print("\n" + "=" * 70)
+        print(f"⏱️ SESSÃO CONFIGURADA: {target_mins:.1f} MINUTOS DE USO CONTÍNUO DA API")
+        print(f"🛡️ LIMITE ATIVO: 60 REQ/MINUTO (CADÊNCIA AUTOMÁTICA ~1.08s)")
+        print(f"🎯 META: Enriquecer empresas do Segmento Alto Ticket de Franca-SP")
+        print("=" * 70)
+
         for item in cnaes:
+            elapsed = time.time() - start_time
+            if elapsed >= max_runtime_seconds:
+                print(f"\n⏱️ Limite de tempo de {target_mins:.1f} minutos atingido! Finalizando coleta...")
+                break
+
             cnae_code = item["codigo"]
             cnae_nome = item["nome"]
             
             empresas = self.fetch_cnpj_list(cnae_code, limit=limit_per_cnae)
+            time.sleep(1.05)
             
             for emp in empresas:
+                elapsed = time.time() - start_time
+                if elapsed >= max_runtime_seconds:
+                    print(f"\n⏱️ Limite de tempo de {target_mins:.1f} minutos atingido! Finalizando processamento...")
+                    break
+
                 raw_cnpj = emp.get("cnpj")
                 clean_c = clean_digits(raw_cnpj)
                 if not clean_c:
@@ -359,9 +399,22 @@ class FicharioManager:
                 if any(p["cnpj"] == clean_c for p in processed_cnpjs):
                     continue
 
-                # Detalhes do CNPJ (QSA, Endereço, Faturamento)
-                time.sleep(0.3) # Throttle respeitoso com a API
+                # Proteção estrita do Rate Limit (60 req/min da API Fichário):
+                if self.last_remaining <= 2:
+                    wait_time = max(2.0, self.last_reset - time.time() + 1.0)
+                    print(f"   ⏳ [RateLimit Watchdog] Quase no teto ({self.last_remaining} restantes). Aguardando {wait_time:.1f}s...")
+                    time.sleep(wait_time)
+                else:
+                    time.sleep(1.08) # Cadência média de ~54 req/minuto (100% seguro)
+
                 details = self.fetch_cnpj_details(clean_c) or {}
+
+                # Exibição do tempo e taxa
+                cur_elapsed = time.time() - start_time
+                mins = int(cur_elapsed // 60)
+                secs = int(cur_elapsed % 60)
+                time_str = f"{mins:02d}:{secs:02d}"
+                target_str = f"{int(target_mins):02d}:00"
 
                 endereco = details.get("endereco") or {}
                 logr = endereco.get("logradouro") or ""
@@ -396,7 +449,7 @@ class FicharioManager:
                 if matched_lead:
                     total_matched += 1
                     matched_id = matched_lead["id"]
-                    print(f"   🔗 [MATCH COM LEAD EXISTENTE ({match_type})]: {razao_social} -> Lead '{matched_lead['name']}'")
+                    print(f"   [{time_str}/{target_str}] [Cota: {self.last_remaining}/60] 🔗 [MATCH ({match_type})]: {razao_social} -> Lead '{matched_lead['name']}'")
                     
                     # Agregar informações ao lead existente
                     matched_lead["cnpj"] = format_cnpj(clean_c)
@@ -423,7 +476,7 @@ class FicharioManager:
                 else:
                     total_new += 1
                     matched_id = None
-                    print(f"   ✨ [NOVO CNPJ]: {razao_social} ({nome_fantasia or 'Sem Fantasia'})")
+                    print(f"   [{time_str}/{target_str}] [Cota: {self.last_remaining}/60] ✨ [NOVO CNPJ]: {razao_social} ({nome_fantasia or 'Sem Fantasia'})")
 
                 record = {
                     "cnpj": clean_c,
@@ -493,7 +546,8 @@ def main():
     parser.add_argument("--cnae", type=str, help="Código de CNAE específico (ex: 4774-1/00 ou 5611-2/01)")
     parser.add_argument("--segmento", type=str, choices=["alto_ticket", "alimentacao", "todos"], default="alto_ticket",
                         help="Preset de segmentos com alto volume ou parcelamento")
-    parser.add_argument("--limite", type=int, default=20, help="Quantidade máxima de empresas por CNAE")
+    parser.add_argument("--limite", type=int, default=35, help="Quantidade máxima de empresas por CNAE")
+    parser.add_argument("--tempo-minutos", type=float, default=5.0, help="Tempo total de execução em minutos utilizando o limite da API (padrão: 5)")
     parser.add_argument("--cidade", type=str, default="Franca", help="Nome da cidade")
     parser.add_argument("--uf", type=str, default="SP", help="Sigla do estado")
 
@@ -508,11 +562,13 @@ def main():
     else:
         cnaes_to_run = CNAE_PRESETS.get(args.segmento, [])
 
+    max_runtime = int(args.tempo_minutos * 60)
     print(f"🚀 Iniciando extração e cruzamento de CNPJs para {args.cidade}/{args.uf}...")
     print(f"Segmento selecionado: {args.segmento} ({len(cnaes_to_run)} CNAEs configurados)")
+    print(f"Duração programada: {args.tempo_minutos:.1f} minutos de coleta contínua")
 
     manager = FicharioManager(cidade=args.cidade, uf=args.uf)
-    manager.run_import(cnaes_to_run, limit_per_cnae=args.limite)
+    manager.run_import(cnaes_to_run, limit_per_cnae=args.limite, max_runtime_seconds=max_runtime)
 
 if __name__ == "__main__":
     main()

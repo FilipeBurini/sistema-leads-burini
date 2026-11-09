@@ -32,26 +32,26 @@ goto MENU
 
 :ALTO_TICKET
 echo.
-echo 🚀 Iniciando extração do segmento ALTO TICKET...
-python scripts\fichario_cnpj_manager.py --segmento alto_ticket --limite 25
+echo 🚀 Iniciando extração do segmento ALTO TICKET (5 minutos de limite contínuo)...
+python scripts\fichario_cnpj_manager.py --segmento alto_ticket --tempo-minutos 5 --limite 35
 goto PAUSA
 
 :ALIMENTACAO
 echo.
-echo 🚀 Iniciando extração do segmento ALIMENTAÇÃO...
-python scripts\fichario_cnpj_manager.py --segmento alimentacao --limite 25
+echo 🚀 Iniciando extração do segmento ALIMENTAÇÃO (5 minutos de limite contínuo)...
+python scripts\fichario_cnpj_manager.py --segmento alimentacao --tempo-minutos 5 --limite 35
 goto PAUSA
 
 :TODOS
 echo.
-echo 🚀 Iniciando extração de TODOS os segmentos...
-python scripts\fichario_cnpj_manager.py --segmento todos --limite 20
+echo 🚀 Iniciando extração de TODOS os segmentos (5 minutos de limite contínuo)...
+python scripts\fichario_cnpj_manager.py --segmento todos --tempo-minutos 5 --limite 30
 goto PAUSA
 
 :CNAE_MANUAL
 echo.
 set /p cnae_code="Digite o código CNAE (ex: 4774-1/00): "
-python scripts\fichario_cnpj_manager.py --cnae "%cnae_code%" --limite 30
+python scripts\fichario_cnpj_manager.py --cnae "%cnae_code%" --tempo-minutos 3 --limite 40
 goto PAUSA
 
 :PAUSA
