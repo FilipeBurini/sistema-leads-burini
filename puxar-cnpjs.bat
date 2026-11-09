@@ -96,6 +96,9 @@ goto PAUSA
 
 :PAUSA
 echo.
+echo 🧭 Geocodificando CNPJs para suas coordenadas reais no mapa de Franca...
+python scripts\geocode_cnpj_leads.py
+echo.
 echo ==============================================================================
 echo Processo concluído! Os dados foram agregados e salvos.
 echo Verifique o painel Admin (admin.html) para visualizar os CNPJs e alertas.

@@ -3338,10 +3338,55 @@ async function loadCnpjLeadsIntoPlaces() {
           const cnaeCode = c.cnae_principal || '';
           const isHighTicket = !cnaeCode.startsWith('561'); // High ticket para óticas, odonto, móveis, celulares, estética
 
-          // Deterministic coordinate distribution around Franca Centro / Bairros
-          const hash = cnpjClean.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-          const latOffset = ((hash % 100) - 50) * 0.00035;
-          const lngOffset = (((hash * 7) % 100) - 50) * 0.00035;
+          // Coordenadas Reais do CNPJ (Geocodificadas por Rua, Número e Bairro)
+          let finalLat = (typeof c.lat === 'number' && !isNaN(c.lat)) ? c.lat : null;
+          let finalLng = (typeof c.lng === 'number' && !isNaN(c.lng)) ? c.lng : null;
+
+          if (!finalLat || !finalLng) {
+            const bairroUpper = (c.bairro || '').toUpperCase().trim();
+            const FRANCA_BAIRROS = {
+              'CENTRO': [-20.5386, -47.4009],
+              'CIDADE NOVA': [-20.5310, -47.4080],
+              'ESTACAO': [-20.5480, -47.4120],
+              'SAO JOSE': [-20.5450, -47.4020],
+              'VILA APARECIDA': [-20.5360, -47.3910],
+              'VILA SANTOS DUMONT': [-20.5420, -47.3820],
+              'VILA CHICO JULIO': [-20.5220, -47.4110],
+              'VILA NOVA': [-20.5250, -47.4050],
+              'VILA SANTA CRUZ': [-20.5340, -47.4130],
+              'PARQUE VICENTE LEPORACE': [-20.4950, -47.4180],
+              'JARDIM PAULISTANO': [-20.5520, -47.3750],
+              'SAO MIGUEL': [-20.5420, -47.4320],
+              'JARDIM REDENTOR': [-20.5580, -47.3820],
+              'JARDIM PIRATININGA': [-20.5590, -47.4050],
+              'JARDIM VENEZA': [-20.5490, -47.4040],
+              'RESIDENCIAL AMAZONAS': [-20.5650, -47.3920],
+              'PRIMO MENEGHETTI': [-20.5180, -47.3720],
+              'JARDIM FRANCANO': [-20.5280, -47.4180],
+              'VERA CRUZ': [-20.5530, -47.4280],
+              'SAO JOAQUIM': [-20.5210, -47.3990],
+              'PARQUE PROGRESSO': [-20.5580, -47.3880],
+              'JARDIM ALVORADA': [-20.5650, -47.3950],
+              'JARDIM CAMBUI': [-20.4810, -47.4050],
+              'JARDIM AEROPORTO': [-20.5750, -47.3680]
+            };
+
+            let matchedBairroCoords = null;
+            for (const [bName, bCoord] of Object.entries(FRANCA_BAIRROS)) {
+              if (bairroUpper.includes(bName) || bName.includes(bairroUpper)) {
+                matchedBairroCoords = bCoord;
+                break;
+              }
+            }
+
+            const baseLat = matchedBairroCoords ? matchedBairroCoords[0] : -20.5386;
+            const baseLng = matchedBairroCoords ? matchedBairroCoords[1] : -47.4009;
+            const hash = cnpjClean.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const latOffset = ((hash % 100) - 50) * 0.00035;
+            const lngOffset = (((hash * 7) % 100) - 50) * 0.00035;
+            finalLat = baseLat + latOffset;
+            finalLng = baseLng + lngOffset;
+          }
 
           const newPlace = {
             id: id,
@@ -3353,8 +3398,8 @@ async function loadCnpjLeadsIntoPlaces() {
             neighborhood: c.bairro || 'Centro',
             city: c.municipio || 'Franca',
             state: c.uf || 'SP',
-            lat: -20.5386 + latOffset,
-            lng: -47.4009 + lngOffset,
+            lat: finalLat,
+            lng: finalLng,
             phone: c.telefone || '',
             whatsapp: c.telefone ? c.telefone.replace(/\D/g, '') : '',
             email: c.email || '',
