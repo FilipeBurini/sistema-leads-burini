@@ -62,9 +62,15 @@ CNAE_PRESETS = {
         {"codigo": "4530-7/05", "nome": "Lojas de Pneus e Rodas (Pneumáticos)"},
         {"codigo": "4530-7/03", "nome": "Autopeças e Acessórios Veiculares"}
     ],
+    "farmacia_pet": [
+        {"codigo": "4771-7/01", "nome": "Farmácias, Drogarias e Manipulação"},
+        {"codigo": "7500-1/00", "nome": "Clínicas e Hospitais Veterinários"},
+        {"codigo": "4789-0/04", "nome": "Pet Shops e Artigos Veterinários"},
+        {"codigo": "9313-1/00", "nome": "Academias de Ginástica e Fitness"}
+    ],
     "moda": [
-        {"codigo": "4781-4/00", "nome": "Lojas de Vestuário e Boutiques"},
-        {"codigo": "4782-2/01", "nome": "Lojas de Calçados de Alto Padrão"}
+        {"codigo": "4782-2/01", "nome": "Lojas de Calçados de Alto Padrão"},
+        {"codigo": "4781-4/00", "nome": "Lojas de Vestuário e Boutiques"}
     ],
     "alto_ticket": [
         {"codigo": "8630-5/04", "nome": "Clínicas Odontológicas"},
@@ -75,14 +81,15 @@ CNAE_PRESETS = {
         {"codigo": "4754-7/01", "nome": "Lojas de Móveis Planejados e Colchões"},
         {"codigo": "4520-0/01", "nome": "Oficinas Mecânicas e Auto Centers"},
         {"codigo": "4530-7/05", "nome": "Lojas de Pneus e Rodas (Pneumáticos)"},
-        {"codigo": "4781-4/00", "nome": "Lojas de Vestuário e Boutiques"},
-        {"codigo": "4782-2/01", "nome": "Lojas de Calçados de Alto Padrão"}
+        {"codigo": "4530-7/03", "nome": "Autopeças e Acessórios Veiculares"},
+        {"codigo": "4771-7/01", "nome": "Farmácias e Drogarias"},
+        {"codigo": "7500-1/00", "nome": "Clínicas Veterinárias"},
+        {"codigo": "4782-2/01", "nome": "Lojas de Calçados de Alto Padrão"},
+        {"codigo": "4781-4/00", "nome": "Lojas de Vestuário e Boutiques"}
     ],
     "alimentacao": [
         {"codigo": "5611-2/01", "nome": "Restaurantes e Churrascarias"},
-        {"codigo": "5611-2/02", "nome": "Bares e Choperias"},
-        {"codigo": "5611-2/03", "nome": "Lanchonetes e Casas de Sucos"},
-        {"codigo": "4723-7/00", "nome": "Adegas e Comércio de Bebidas"},
+        {"codigo": "4723-7/00", "nome": "Adegas e Distribuidoras de Bebidas"},
         {"codigo": "4722-9/01", "nome": "Açougues e Casas de Carnes"},
         {"codigo": "4721-1/02", "nome": "Padarias e Confeitarias"},
         {"codigo": "4712-1/00", "nome": "Mercados de Bairro e Mercearias"}
@@ -154,6 +161,24 @@ class FicharioManager:
 
         # Carregar CNPJs já coletados anteriormente para evitar re-consultas redundantes
         self.already_collected_cnpjs = set()
+        
+        # 1. Do banco Supabase (tabela public.cnpj_leads)
+        try:
+            req_supa_cnpjs = urllib.request.Request(
+                f"{SUPABASE_URL}/rest/v1/cnpj_leads?select=cnpj&limit=10000",
+                headers=HEADERS_SUPABASE
+            )
+            with urllib.request.urlopen(req_supa_cnpjs, timeout=15) as resp:
+                supa_items = json.loads(resp.read().decode())
+                for it in supa_items:
+                    c = clean_digits(it.get("cnpj"))
+                    if c:
+                        self.already_collected_cnpjs.add(c)
+                print(f"✔ {len(self.already_collected_cnpjs)} CNPJs carregados de Supabase para deduplicação.")
+        except Exception as e:
+            print(f"Aviso ao carregar CNPJs do Supabase: {e}")
+
+        # 2. Do arquivo local cnpj-leads.json
         local_cnpj_path = os.path.join(os.path.dirname(__file__), "..", "data", "cnpj-leads.json")
         if os.path.exists(local_cnpj_path):
             try:
@@ -162,7 +187,7 @@ class FicharioManager:
                         c = clean_digits(it.get("cnpj"))
                         if c:
                             self.already_collected_cnpjs.add(c)
-                print(f"✔ {len(self.already_collected_cnpjs)} CNPJs já catalogados em histórico anterior.")
+                print(f"✔ {len(self.already_collected_cnpjs)} CNPJs únicos consolidados para não repetir chamadas.")
             except Exception as e:
                 print(f"Aviso ao ler histórico de CNPJs: {e}")
 
@@ -206,12 +231,11 @@ class FicharioManager:
                 reader = csv.DictReader(io.StringIO(content), delimiter=';')
                 rows = list(reader)
                 if rows:
-                    print(f"✔ [Descoberta Rápida]: {len(rows)} empresas encontradas no CNAE {cnae_code}.")
-                    resultados = []
+                    uncollected = []
                     for r in rows:
                         cnpj_num = clean_digits(r.get("cnpj"))
                         if cnpj_num:
-                            resultados.append({
+                            item = {
                                 "cnpj": cnpj_num,
                                 "razao_social": r.get("razao_social", ""),
                                 "nome_fantasia": r.get("nome_fantasia", ""),
@@ -221,27 +245,45 @@ class FicharioManager:
                                 "telefone": r.get("telefone", ""),
                                 "natureza_juridica": r.get("natureza_juridica", ""),
                                 "faixa_receita_estimada": r.get("faixa_receita_estimada", "")
-                            })
-                    return resultados
+                            }
+                            if cnpj_num not in self.already_collected_cnpjs:
+                                uncollected.append(item)
+                                if limit and len(uncollected) >= limit:
+                                    break
+                    print(f"✔ [Descoberta Rápida]: {len(rows)} encontradas no CNAE ({len(uncollected)} inéditas selecionadas para dossiê).")
+                    return uncollected
         except Exception as e:
             print(f"⚠️ Exportação CSV indisponível ou limitada ({e}). Tentando endpoint JSON...")
 
-        # 2. Fallback JSON tradicional
-        url = f"{FICHARIO_BASE_URL}/busca-avancada?cidade={urllib.parse.quote(self.cidade)}&uf={self.uf}&cnae={cnae_digits}&por_pagina={min(limit, 100)}"
-        req = urllib.request.Request(url, headers=HEADERS_FICHARIO)
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                self.last_remaining = int(resp.headers.get("X-RateLimit-Remaining", 60))
-                self.last_reset = float(resp.headers.get("X-RateLimit-Reset", 0))
-                self.total_api_calls += 1
-                data = json.loads(resp.read().decode())
-                resultados = data.get("resultados", [])
-                total = data.get("total", len(resultados))
-                print(f"✔ Encontradas {total} empresas registradas via JSON. Selecionando lote de {min(len(resultados), limit)}...")
-                return resultados[:limit]
-        except Exception as e:
-            print(f"❌ Erro ao consultar CNAE {cnae_code}: {e}")
-            return []
+        # 2. Fallback JSON tradicional com paginação automática
+        uncollected = []
+        page = 1
+        max_pages = 6
+        while page <= max_pages and len(uncollected) < limit:
+            url = f"{FICHARIO_BASE_URL}/busca-avancada?cidade={urllib.parse.quote(self.cidade)}&uf={self.uf}&cnae={cnae_digits}&por_pagina=50&pagina={page}"
+            req = urllib.request.Request(url, headers=HEADERS_FICHARIO)
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    self.last_remaining = int(resp.headers.get("X-RateLimit-Remaining", 60))
+                    self.last_reset = float(resp.headers.get("X-RateLimit-Reset", 0))
+                    self.total_api_calls += 1
+                    data = json.loads(resp.read().decode())
+                    resultados = data.get("resultados", [])
+                    if not resultados:
+                        break
+                    for r in resultados:
+                        cnpj_num = clean_digits(r.get("cnpj"))
+                        if cnpj_num and cnpj_num not in self.already_collected_cnpjs:
+                            uncollected.append(r)
+                            if len(uncollected) >= limit:
+                                break
+                    page += 1
+                    time.sleep(1.05)
+            except Exception as e:
+                print(f"❌ Erro ao consultar JSON pagina {page}: {e}")
+                break
+        print(f"✔ Selecionadas {len(uncollected)} empresas inéditas via JSON para dossiê.")
+        return uncollected
 
     def fetch_cnpj_details(self, cnpj):
         """Consulta dossiê completo de um CNPJ respeitando rate limits da API"""
@@ -435,24 +477,61 @@ class FicharioManager:
             except Exception as e:
                 print(f"Aviso ao atualizar lead {lid}: {e}")
 
-    def run_import(self, cnaes, limit_per_cnae=35, max_runtime_seconds=300):
-        """Executa a importação completa respeitando limite de tempo e cota por minuto"""
+    def update_local_places(self, leads_to_update):
+        """Atualiza data/default-places.json e data/default-places.js com os dados enriquecidos da Receita"""
+        if not leads_to_update:
+            return
+        local_path = os.path.join(os.path.dirname(__file__), "..", "data", "default-places.json")
+        js_path = os.path.join(os.path.dirname(__file__), "..", "data", "default-places.js")
+        if not os.path.exists(local_path):
+            return
+        try:
+            with open(local_path, "r", encoding="utf-8") as f:
+                places = json.load(f)
+            lookup = {l["id"]: l for l in leads_to_update}
+            updated_count = 0
+            for p in places:
+                if p.get("id") in lookup:
+                    up = lookup[p["id"]]
+                    p["cnpj"] = up.get("cnpj")
+                    p["cnae"] = up.get("cnae")
+                    p["data_abertura"] = up.get("data_abertura")
+                    p["crm_notes"] = up.get("crm_notes")
+                    updated_count += 1
+            with open(local_path, "w", encoding="utf-8") as f:
+                json.dump(places, f, ensure_ascii=False, indent=2)
+            with open(js_path, "w", encoding="utf-8") as f:
+                f.write("window.DEFAULT_PLACES = " + json.dumps(places, ensure_ascii=False) + ";")
+            print(f"✔ Local default-places.json/.js sincronizados com {updated_count} leads enriquecidos!")
+        except Exception as e:
+            print(f"Aviso ao sincronizar local default-places: {e}")
+
+    def run_import(self, cnaes, limit_per_cnae=80, max_runtime_seconds=1500, max_total_cnpjs=2000, batch_size=20):
+        """Executa a importação completa respeitando limite de tempo, cota por minuto e salvamento incremental"""
         self.load_existing_leads()
 
         start_time = time.time()
         processed_cnpjs = []
         enriched_leads = []
+        uncommitted_records = []
+        uncommitted_enriched = []
         total_matched = 0
         total_new = 0
 
         target_mins = max_runtime_seconds / 60.0
         print("\n" + "=" * 70)
-        print(f"⏱️ SESSÃO CONFIGURADA: {target_mins:.1f} MINUTOS DE USO CONTÍNUO DA API")
+        print(f"⏱️ SESSÃO DE ENRIQUECIMENTO COM DOSSIÊ COMPLETO (FICHÁRIO API)")
+        print(f"⏱️ DURAÇÃO MÁXIMA: {target_mins:.1f} MINUTOS | TETO DE CNPJS: {max_total_cnpjs}")
         print(f"🛡️ LIMITE ATIVO: 60 REQ/MINUTO (CADÊNCIA AUTOMÁTICA ~1.08s)")
-        print(f"🎯 META: Enriquecer empresas do Segmento Alto Ticket de Franca-SP")
+        print(f"💾 SALVAMENTO INCREMENTAL: A CADA {batch_size} EMPRESAS (NENHUM DADO É PERDIDO)")
+        print(f"🎯 CNAEs PROGRAMADOS: {len(cnaes)} SEGMENTOS ESTRATÉGICOS")
         print("=" * 70)
 
+        quota_exhausted = False
+
         for item in cnaes:
+            if quota_exhausted or len(processed_cnpjs) >= max_total_cnpjs:
+                break
             elapsed = time.time() - start_time
             if elapsed >= max_runtime_seconds:
                 print(f"\n⏱️ Limite de tempo de {target_mins:.1f} minutos atingido! Finalizando coleta...")
@@ -465,6 +544,9 @@ class FicharioManager:
             time.sleep(1.05)
             
             for emp in empresas:
+                if len(processed_cnpjs) >= max_total_cnpjs:
+                    print(f"\n🎯 Meta global de {max_total_cnpjs} CNPJs atingida!")
+                    break
                 elapsed = time.time() - start_time
                 if elapsed >= max_runtime_seconds:
                     print(f"\n⏱️ Limite de tempo de {target_mins:.1f} minutos atingido! Finalizando processamento...")
@@ -489,7 +571,12 @@ class FicharioManager:
                 else:
                     time.sleep(1.08) # Cadência média de ~54 req/minuto (100% seguro)
 
-                details = self.fetch_cnpj_details(clean_c) or {}
+                details = self.fetch_cnpj_details(clean_c)
+                if details is None and self.last_remaining == 0:
+                    print("\n⚠️ Possível limite diário de requisições atingido. Encerrando com segurança e salvando lote...")
+                    quota_exhausted = True
+                    break
+                details = details or {}
 
                 # Exibição do tempo e taxa
                 cur_elapsed = time.time() - start_time
@@ -555,6 +642,7 @@ class FicharioManager:
                         matched_lead["crm_notes"] = ((matched_lead.get("crm_notes") or "") + nota_adicional).strip()
 
                     enriched_leads.append(matched_lead)
+                    uncommitted_enriched.append(matched_lead)
                 else:
                     total_new += 1
                     matched_id = None
@@ -594,24 +682,51 @@ class FicharioManager:
                     "ghost_count_at_address": 1
                 }
                 processed_cnpjs.append(record)
+                uncommitted_records.append(record)
+                self.already_collected_cnpjs.add(clean_c)
 
-        # 3. DETECÇÃO DE CNPJS FANTASMAS (CONCENTRAÇÃO NO MESMO LOCAL)
+                # SALVAMENTO INCREMENTAL A CADA BATCH (Evita qualquer perda de dados)
+                if len(uncommitted_records) >= batch_size:
+                    print(f"\n💾 [Checkpoint Auto-Save]: Gravando lote de {len(uncommitted_records)} CNPJs no Supabase e backup local...")
+                    self.save_cnpj_leads_to_supabase(uncommitted_records)
+                    self.save_local_backup(uncommitted_records)
+                    if uncommitted_enriched:
+                        self.update_enriched_leads_in_supabase(uncommitted_enriched)
+                        self.update_local_places(uncommitted_enriched)
+                        uncommitted_enriched = []
+                    uncommitted_records = []
+                    print(f"✔ [Checkpoint Concluído]: Total salvo até agora: {len(processed_cnpjs)} CNPJs nesta sessão.\n")
+
+            # Salvar no final de cada CNAE
+            if uncommitted_records:
+                print(f"\n💾 [CNAE Finalizado - Auto-Save]: Gravando saldo de {len(uncommitted_records)} CNPJs...")
+                self.save_cnpj_leads_to_supabase(uncommitted_records)
+                self.save_local_backup(uncommitted_records)
+                if uncommitted_enriched:
+                    self.update_enriched_leads_in_supabase(uncommitted_enriched)
+                    self.update_local_places(uncommitted_enriched)
+                    uncommitted_enriched = []
+                uncommitted_records = []
+
+        # 3. DETECÇÃO FINAL DE CNPJS FANTASMAS (CONCENTRAÇÃO NO MESMO LOCAL)
         ghost_alerts = self.detect_ghost_clusters(processed_cnpjs, threshold=3)
 
-        # 4. SALVAMENTO E SINCRONIZAÇÃO
-        self.save_cnpj_leads_to_supabase(processed_cnpjs)
-        self.save_local_backup(processed_cnpjs)
-
-        if enriched_leads:
-            self.update_enriched_leads_in_supabase(enriched_leads)
+        # 4. SALVAMENTO FINAL COMPLETO CONSOLIDADO
+        if uncommitted_records:
+            self.save_cnpj_leads_to_supabase(uncommitted_records)
+            self.save_local_backup(uncommitted_records)
+            if uncommitted_enriched:
+                self.update_enriched_leads_in_supabase(uncommitted_enriched)
+                self.update_local_places(uncommitted_enriched)
 
         # 5. RELATÓRIO EXECUTIVO FINAL
         print("\n" + "=" * 70)
         print("📊 RELATÓRIO FINAL DA IMPORTAÇÃO E ANÁLISE DE CNPJS")
         print("=" * 70)
-        print(f"Total de CNPJs processados:               {len(processed_cnpjs)}")
+        print(f"Total de CNPJs processados nesta sessão:   {len(processed_cnpjs)}")
         print(f"CNPJs vinculados a Leads já existentes:   {total_matched} (Enriquecidos sem duplicar)")
         print(f"CNPJs novos catalogados:                  {total_new} (Prontos para prospecção)")
+        print(f"Total acumulado na base geral:            {len(self.already_collected_cnpjs)} CNPJs")
         print(f"Endereços suspeitos de CNPJs Fantasmas:   {len(ghost_alerts)}")
         
         if ghost_alerts:
@@ -626,10 +741,12 @@ class FicharioManager:
 def main():
     parser = argparse.ArgumentParser(description="Gerenciador de CNPJs da Receita Federal via Fichário")
     parser.add_argument("--cnae", type=str, help="Código de CNAE específico (ex: 4774-1/00 ou 5611-2/01)")
-    parser.add_argument("--segmento", type=str, choices=["saude", "tech_joias", "auto_moveis", "moda", "alto_ticket", "alimentacao", "todos"], default="alto_ticket",
+    parser.add_argument("--segmento", type=str, choices=["saude", "tech_joias", "auto_moveis", "farmacia_pet", "moda", "alto_ticket", "alimentacao", "todos"], default="alto_ticket",
                         help="Preset de segmentos com alto volume ou parcelamento")
-    parser.add_argument("--limite", type=int, default=35, help="Quantidade máxima de empresas por CNAE")
-    parser.add_argument("--tempo-minutos", type=float, default=5.0, help="Tempo total de execução em minutos utilizando o limite da API (padrão: 5)")
+    parser.add_argument("--limite", type=int, default=80, help="Quantidade máxima de empresas por CNAE")
+    parser.add_argument("--tempo-minutos", type=float, default=25.0, help="Tempo total de execução em minutos utilizando o limite da API (padrão: 25)")
+    parser.add_argument("--max-total", type=int, default=2000, help="Teto máximo global de CNPJs a extrair nesta sessão")
+    parser.add_argument("--batch-size", type=int, default=20, help="Tamanho do lote para auto-save incremental")
     parser.add_argument("--cidade", type=str, default="Franca", help="Nome da cidade")
     parser.add_argument("--uf", type=str, default="SP", help="Sigla do estado")
 
@@ -647,10 +764,13 @@ def main():
     max_runtime = int(args.tempo_minutos * 60)
     print(f"🚀 Iniciando extração e cruzamento de CNPJs para {args.cidade}/{args.uf}...")
     print(f"Segmento selecionado: {args.segmento} ({len(cnaes_to_run)} CNAEs configurados)")
-    print(f"Duração programada: {args.tempo_minutos:.1f} minutos de coleta contínua")
+    print(f"Duração programada: {args.tempo_minutos:.1f} minutos de coleta contínua (Teto: {args.max_total} CNPJs)")
 
     manager = FicharioManager(cidade=args.cidade, uf=args.uf)
-    manager.run_import(cnaes_to_run, limit_per_cnae=args.limite, max_runtime_seconds=max_runtime)
+    manager.run_import(cnaes_to_run, limit_per_cnae=args.limite, max_runtime_seconds=max_runtime, max_total_cnpjs=args.max_total, batch_size=args.batch_size)
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()
