@@ -840,7 +840,7 @@ window.selectPlace = function(placeId, zoomIn = false) {
   // Preencher e abrir o Drawer de Detalhes
   const drawer = document.getElementById('placeDetailDrawer');
   const drawerContent = document.getElementById('drawerContent');
-  const photo = place.photo || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80';
+  const hasRealPhoto = Boolean(place.photo && place.photo.trim().length > 0 && !place.photo.includes('photo-1517248135467'));
   const catName = AppState.categoryNames[place.category] || place.category;
   
   const googleMapsRouteUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`;
@@ -848,10 +848,29 @@ window.selectPlace = function(placeId, zoomIn = false) {
 
   const tagsHtml = (place.tags || []).map(t => `<span class="mini-tag">${escapeHtml(t)}</span>`).join('');
 
-  drawerContent.innerHTML = `
-    <div class="drawer-hero-img" style="background-image: url('${escapeHtml(photo)}')">
+  const heroHtml = hasRealPhoto ? `
+    <div class="drawer-hero-img" style="background-image: url('${escapeHtml(place.photo)}')">
       <div class="drawer-hero-overlay"></div>
     </div>
+  ` : `
+    <div class="drawer-hero-header-placeholder" style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border-bottom: 1px solid rgba(255,255,255,0.08); padding: 1.25rem 1.25rem 0.6rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <div style="width: 44px; height: 44px; border-radius: 10px; background: ${AppState.segmentColors[place.commercialSegment] || 'rgba(56, 189, 248, 0.2)'}22; border: 1px solid ${AppState.segmentColors[place.commercialSegment] || '#38bdf8'}44; display: flex; align-items: center; justify-content: center; color: ${AppState.segmentColors[place.commercialSegment] || '#38bdf8'}; font-size: 1.35rem;">
+          <i class="${AppState.segmentIcons[place.commercialSegment] || (place.cnpj ? 'ri-file-text-fill' : 'ri-store-2-line')}"></i>
+        </div>
+        <div>
+          <span style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: ${AppState.segmentColors[place.commercialSegment] || '#38bdf8'}; font-weight: 700;">
+            ${place.cnpj ? 'Empresa Registrada • Receita Federal' : (AppState.segmentNames[place.commercialSegment] || catName)}
+          </span>
+          <div style="font-size: 0.76rem; color: #94a3b8;">${escapeHtml(place.neighborhood || place.city || 'Franca - SP')}</div>
+        </div>
+      </div>
+      ${place.cnpj ? `<span style="font-size: 0.68rem; padding: 3px 8px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 700; border: 1px solid rgba(56, 189, 248, 0.3);"><i class="ri-file-text-fill"></i> CNPJ OFICIAL</span>` : ''}
+    </div>
+  `;
+
+  drawerContent.innerHTML = `
+    ${heroHtml}
     <div class="drawer-body">
       <div class="drawer-meta-top">
         <span class="drawer-cat-badge" style="background: ${!openStatus.isOpen ? '#475569' : (AppState.segmentColors[place.commercialSegment] || 'var(--color-primary)')}">
