@@ -199,12 +199,20 @@ WITH CHECK (
     OR assigned_to IS NULL
 );
 
--- Acesso Anônimo para inserção de dados via Scripts / Scraper
+-- Acesso Controlado para inserção de dados via Scripts / Scraper
 DROP POLICY IF EXISTS "Acesso Anonimo Scraper e Sincronizacao" ON public.leads;
-CREATE POLICY "Acesso Anonimo Scraper e Sincronizacao"
-ON public.leads FOR ALL
+DROP POLICY IF EXISTS "Leitura anonima de leads" ON public.leads;
+DROP POLICY IF EXISTS "Insercao de leads via scraper" ON public.leads;
+
+-- Anônimos podem no máximo consultar e inserir novos registros (NUNCA deletar ou atualizar existentes)
+CREATE POLICY "Leitura anonima de leads"
+ON public.leads FOR SELECT
 TO anon
-USING (true)
+USING (true);
+
+CREATE POLICY "Insercao de leads via scraper"
+ON public.leads FOR INSERT
+TO anon
 WITH CHECK (true);
 
 -- Políticas para Histórico
@@ -234,11 +242,19 @@ CREATE POLICY "Qualquer usuário pode registrar seu pedido de acesso"
     WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Administradores podem atualizar status dos usuários" ON public.system_users;
-CREATE POLICY "Administradores podem atualizar status dos usuários"
-    ON public.system_users FOR ALL
-    TO authenticated, anon
-    USING (true)
-    WITH CHECK (true);
+DROP POLICY IF EXISTS "Apenas Master pode atualizar status e cargos" ON public.system_users;
+DROP POLICY IF EXISTS "Apenas Master pode excluir usuários" ON public.system_users;
+
+CREATE POLICY "Apenas Master pode atualizar status e cargos"
+ON public.system_users FOR UPDATE
+TO authenticated
+USING (public.is_master_user() = true)
+WITH CHECK (public.is_master_user() = true);
+
+CREATE POLICY "Apenas Master pode excluir usuários"
+ON public.system_users FOR DELETE
+TO authenticated
+USING (public.is_master_user() = true);
 
 
 -- 6. HABILITAR ATUALIZAÇÕES EM TEMPO REAL (SUPABASE REALTIME)

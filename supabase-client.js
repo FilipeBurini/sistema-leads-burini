@@ -162,7 +162,7 @@ const CloudSync = {
       return { status: 'approved', isApproved: true, role: 'master' };
     }
 
-    if (!this.client) return { status: 'approved', isApproved: true, role: 'agent' };
+    if (!this.client) return { status: 'pending', isApproved: false, role: 'agent' };
 
     try {
       const { data, error } = await this.client
@@ -173,7 +173,8 @@ const CloudSync = {
 
       if (error) {
         console.warn('Erro ao checar status em system_users:', error);
-        return { status: 'approved', isApproved: true, role: 'agent' };
+        // Fail-Closed: em caso de erro na consulta, manter bloqueado por segurança
+        return { status: 'pending', isApproved: false, role: 'agent' };
       }
 
       if (!data) {

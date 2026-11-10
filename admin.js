@@ -3,6 +3,16 @@
  * CityMap Hub - Mapeador Urbano & CRM
  */
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 const AdminApp = {
   places: [],
   interactions: [],
@@ -278,12 +288,12 @@ const AdminApp = {
 
     tbody.innerHTML = slice.map(p => `
       <tr>
-        <td class="lead-name-cell">${p.name || 'Sem nome'}</td>
-        <td><span class="lead-cnpj-badge">${p.cnpj || 'N/D'}</span></td>
-        <td>${p.commercialSegment || 'Outro'}</td>
-        <td>${p.cardMachine || '<span style="color:#64748b;">Não Informado</span>'}</td>
+        <td class="lead-name-cell">${escapeHtml(p.name || 'Sem nome')}</td>
+        <td><span class="lead-cnpj-badge">${escapeHtml(p.cnpj || 'N/D')}</span></td>
+        <td>${escapeHtml(p.commercialSegment || 'Outro')}</td>
+        <td>${p.cardMachine ? escapeHtml(p.cardMachine) : '<span style="color:#64748b;">Não Informado</span>'}</td>
         <td>${stageLabels[p.crmStage] || stageLabels.lead}</td>
-        <td>${p.phone || p.whatsapp || '<span style="color:#64748b;">—</span>'}</td>
+        <td>${escapeHtml(p.phone || p.whatsapp || '—')}</td>
       </tr>
     `).join('');
   },
@@ -374,10 +384,10 @@ const AdminApp = {
         // Seletor de Supervisor Designado
         if (currentRole === 'agent') {
           supervisorSelector = `
-            <select onchange="AdminApp.handleSupervisorChange('${u.id}', this.value)" style="background:#0b1120; border:1px solid var(--border-color); color:#38bdf8; border-radius:4px; padding:3px 6px; font-size:0.75rem; cursor:pointer; max-width:180px;">
+            <select onchange="AdminApp.handleSupervisorChange('${escapeHtml(u.id)}', this.value)" style="background:#0b1120; border:1px solid var(--border-color); color:#38bdf8; border-radius:4px; padding:3px 6px; font-size:0.75rem; cursor:pointer; max-width:180px;">
               <option value="">— Sem Supervisor (Master) —</option>
               ${supervisors.map(s => `
-                <option value="${s.id}" ${u.supervisor_id === s.id ? 'selected' : ''}>👔 ${s.full_name || s.email.split('@')[0]}</option>
+                <option value="${escapeHtml(s.id)}" ${u.supervisor_id === s.id ? 'selected' : ''}>👔 ${escapeHtml(s.full_name || s.email.split('@')[0])}</option>
               `).join('')}
             </select>
           `;
@@ -385,27 +395,30 @@ const AdminApp = {
           supervisorSelector = `<span style="color:#64748b; font-size:0.75rem;">— (Gestão Direta)</span>`;
         }
 
+        const safeEmailAttr = escapeHtml(u.email).replace(/'/g, "\\'");
+        const safeIdAttr = escapeHtml(u.id).replace(/'/g, "\\'");
+
         if (u.status === 'pending') {
           statusBadge = `<span class="status-pill status-pending">⏳ Aguardando</span>`;
           actionButtons = `
-            <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'approved', '${u.email}')">
+            <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${safeIdAttr}', 'approved', '${safeEmailAttr}')">
               <i class="ri-check-line"></i> Aprovar
             </button>
-            <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'rejected', '${u.email}')">
+            <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${safeIdAttr}', 'rejected', '${safeEmailAttr}')">
               <i class="ri-close-line"></i> Recusar
             </button>
           `;
         } else if (u.status === 'approved') {
           statusBadge = `<span class="status-pill status-approved">✅ Liberado</span>`;
           actionButtons = `
-            <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'rejected', '${u.email}')" title="Bloquear acesso deste usuário">
+            <button type="button" class="btn-action-user btn-reject" onclick="AdminApp.handleUpdateUserStatus('${safeIdAttr}', 'rejected', '${safeEmailAttr}')" title="Bloquear acesso deste usuário">
               <i class="ri-forbid-2-line"></i> Bloquear
             </button>
           `;
         } else if (u.status === 'rejected') {
           statusBadge = `<span class="status-pill status-rejected">🚫 Recusado</span>`;
           actionButtons = `
-            <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${u.id}', 'approved', '${u.email}')" title="Reativar acesso">
+            <button type="button" class="btn-action-user btn-approve" onclick="AdminApp.handleUpdateUserStatus('${safeIdAttr}', 'approved', '${safeEmailAttr}')" title="Reativar acesso">
               <i class="ri-restart-line"></i> Liberar
             </button>
           `;
@@ -414,8 +427,8 @@ const AdminApp = {
 
       return `
         <tr>
-          <td><strong>${name}</strong></td>
-          <td>${u.email}</td>
+          <td><strong>${escapeHtml(name)}</strong></td>
+          <td>${escapeHtml(u.email)}</td>
           <td>${roleSelector}</td>
           <td>${supervisorSelector}</td>
           <td>${statusBadge}</td>
@@ -662,9 +675,9 @@ const AdminApp = {
             <span class="audit-item-dot" style="background: #38bdf8;"></span>
             <div class="audit-item-content">
               <span class="audit-item-action">
-                <strong class="audit-item-user">${userShort}</strong> ${item.action_type || 'atualizou um lead'}: <em>${item.details || ''}</em>
+                <strong class="audit-item-user">${escapeHtml(userShort)}</strong> ${escapeHtml(item.action_type || 'atualizou um lead')}: <em>${escapeHtml(item.details || '')}</em>
               </span>
-              <span class="audit-item-time"><i class="ri-time-line"></i> ${timeAgo}</span>
+              <span class="audit-item-time"><i class="ri-time-line"></i> ${escapeHtml(timeAgo)}</span>
             </div>
           </div>
         `;
