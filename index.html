@@ -167,6 +167,44 @@
         </div>
       </div>
 
+      <!-- SELETOR DE ORIGEM DOS LEADS: GOOGLE MAPS & RECEITA FEDERAL (PADRÃO: AMBOS ATIVOS) -->
+      <div class="lead-source-section">
+        <div class="lead-source-header">
+          <div class="lead-source-title">
+            <i class="ri-database-2-line"></i>
+            <span>Origem dos Leads</span>
+          </div>
+          <span class="lead-source-subtitle both" id="leadSourceSubtitle">Ambos ativos</span>
+        </div>
+        <div class="lead-source-grid">
+          <button type="button" class="source-toggle-btn active" id="sourceGoogleBtn" data-source="google" title="Ativar/desativar estabelecimentos minerados no Google Maps">
+            <div class="source-toggle-info">
+              <div class="source-icon google">
+                <i class="ri-google-fill"></i>
+              </div>
+              <div class="source-labels">
+                <span class="source-name">Google Maps</span>
+                <span class="source-desc">Locais Minerados</span>
+              </div>
+            </div>
+            <b class="source-badge" id="count-source-google">0</b>
+          </button>
+
+          <button type="button" class="source-toggle-btn active" id="sourceCnpjBtn" data-source="cnpj" title="Ativar/desativar empresas da Receita Federal (CNPJs com Sócios e Faturamento)">
+            <div class="source-toggle-info">
+              <div class="source-icon cnpj">
+                <i class="ri-file-text-fill"></i>
+              </div>
+              <div class="source-labels">
+                <span class="source-name">Receita / CNPJ</span>
+                <span class="source-desc">Dossiê e Sócios</span>
+              </div>
+            </div>
+            <b class="source-badge" id="count-source-cnpj">0</b>
+          </button>
+        </div>
+      </div>
+
       <!-- SEÇÃO FOCO COMERCIAL: ALTA LUCRATIVIDADE & GIRO RÁPIDO -->
       <div class="profit-filter-section">
         <div class="profit-filter-header">
@@ -491,6 +529,12 @@
     <main class="map-wrapper">
       <!-- MAP CONTAINER -->
       <div id="map"></div>
+
+      <!-- BOTÃO FLUTUANTE PARA REABRIR O MENU LATERAL (DESKTOP) -->
+      <button class="floating-expand-sidebar-btn" id="expandSidebarBtn" title="Abrir menu lateral (Ctrl+B)">
+        <i class="ri-side-bar-line"></i>
+        <span>Abrir Menu</span>
+      </button>
 
       <!-- BANNER DE RETORNOS AGENDADOS PARA HOJE / PENDENTES -->
       <div class="map-followup-alert" id="mapFollowUpAlert" style="display: none;">

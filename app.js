@@ -25,6 +25,10 @@ const AppState = {
   selectedCardMachines: [], // Vazio significa todas as disponíveis
   availableCardMachines: ['Stone', 'Cielo', 'Rede', 'PagBank', 'Getnet', 'SafraPay', 'InfinitePay', 'Mercado Pago', 'Ton', 'C6 Bank', 'Outra', 'Não Informado'],
   searchQuery: '',
+  sourceFilters: {
+    google: true,
+    cnpj: true
+  },
   activePlaceId: null,
   currentTileLayer: 'voyager',
   userCoordinates: null,
@@ -136,6 +140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initCnpjExplorerModal();
   setupHorizontalScrollHelpers();
   setupCloudSyncIntegration();
+  syncCommercialSegmentCategories();
   updateUI();
 
   // Atualização periódica do status de funcionamento a cada 60 segundos
@@ -199,6 +204,15 @@ function initMap() {
 // --- ENRIQUECIMENTO E CLASSIFICAÇÃO COMERCIAL DOS LOCAIS ---
 function enrichPlace(p) {
   if (!p) return p;
+
+  // Identificação da origem do lead (Google Maps e/ou Receita Federal CNPJ)
+  if (p.isFromGoogle === undefined) {
+    p.isFromGoogle = !(p.id && String(p.id).startsWith('cnpj_'));
+  }
+  if (p.isFromCnpj === undefined) {
+    p.isFromCnpj = Boolean((p.id && String(p.id).startsWith('cnpj_')) || p.cnpj || (p.tags && (p.tags.includes('Com CNPJ') || p.tags.includes('Novo CNPJ'))));
+  }
+
   if (!p.commercialSegment || p.commercialSegment === 'outro' || p.isHighTurnover === undefined) {
     const chainRegex = /savegnago|tonin|atacad[aã]o|carrefour|p[aã]o de a[cç][uú]car|assai|assaí|dia%|tenda|ti[aã]ozinho|big compra|serv[\s-]?bem|irm[aã]os patroc[ií]nio|sebasti[aã]o lopes|supermercado lider|mcdonald|burger king|subway|habib|chilli beans|cacau show|c&a|renner|riachuelo|ortobom|drogasil|droga raia|pague menos/i;
     p.isChain = chainRegex.test(p.name || '');
@@ -334,14 +348,90 @@ function updateUI() {
   renderPlacesList();
   renderMapMarkers();
   updateCategoryCounts();
+  updateSourceFilterUI();
   renderSubCategoryOptions();
   renderCardMachineOptions();
+}
+
+// --- VALIDAÇÃO DO SEGMENTO COMERCIAL, ORIGEM E REDES ---
+function isPlaceMatchingActiveSegment(place) {
+  if (!place) return false;
+
+  // 0. Filtro de Redes de Supermercados
+  if (AppState.hideChains && place.isChain) {
+    return false;
+  }
+
+  // -1. Filtro de Origem dos Leads (Google Maps & Receita Federal CNPJs)
+  const sourceGoogle = AppState.sourceFilters ? AppState.sourceFilters.google : true;
+  const sourceCnpj = AppState.sourceFilters ? AppState.sourceFilters.cnpj : true;
+  if (!sourceGoogle && !sourceCnpj) return false;
+  if (!sourceGoogle && sourceCnpj) {
+    const isCnpjLead = Boolean(place.isFromCnpj || (place.id && String(place.id).startsWith('cnpj_')) || place.cnpj);
+    if (!isCnpjLead) return false;
+  }
+  if (sourceGoogle && !sourceCnpj) {
+    const isPureCnpj = Boolean((place.id && String(place.id).startsWith('cnpj_')) || (!place.isFromGoogle && place.isFromCnpj));
+    if (isPureCnpj) return false;
+  }
+
+  // 0.1 Filtro de Segmento Comercial / Giro Rápido / Novos CNPJs / Parcelados Alto Valor
+  const segmentFilter = AppState.commercialSegmentFilter;
+  if (segmentFilter === 'high_turnover') {
+    if (!place.isHighTurnover) return false;
+  } else if (segmentFilter === 'high_ticket') {
+    if (!place.isHighTicket) return false;
+  } else if (segmentFilter === 'novo_cnpj') {
+    if (!place.cnpj && (!place.tags || (!place.tags.includes('Novo CNPJ') && !place.tags.includes('Com CNPJ')))) return false;
+  } else if (segmentFilter !== 'all') {
+    if (place.commercialSegment !== segmentFilter) return false;
+  }
+
+  return true;
+}
+
+// --- SINCRONIZAÇÃO BIDIRECIONAL: SEGMENTO COMERCIAL -> CATEGORIAS & FILTROS INFERIORES ---
+function syncCommercialSegmentCategories() {
+  const seg = AppState.commercialSegmentFilter;
+  const allCategoriesList = ['alimentacao', 'comercio', 'saude', 'lazer', 'servicos'];
+
+  if (seg === 'all') {
+    AppState.selectedCategories = [...allCategoriesList];
+  } else {
+    const presentCats = new Set();
+    AppState.places.forEach(p => {
+      if (isPlaceMatchingActiveSegment(p) && p.category) {
+        presentCats.add(p.category);
+      }
+    });
+
+    if (presentCats.size > 0) {
+      AppState.selectedCategories = Array.from(presentCats);
+    } else {
+      AppState.selectedCategories = [...allCategoriesList];
+    }
+  }
+
+  // Sincroniza visualmente as checkboxes do dropdown de categorias
+  const catCheckboxes = document.querySelectorAll('.cat-checkbox');
+  catCheckboxes.forEach(cb => {
+    cb.checked = AppState.selectedCategories.includes(cb.value);
+  });
+
+  const selectAllCatsBtn = document.getElementById('selectAllCatsBtn');
+  if (selectAllCatsBtn) {
+    const areAllChecked = AppState.selectedCategories.length === allCategoriesList.length;
+    selectAllCatsBtn.textContent = areAllChecked ? 'Desmarcar Todas' : 'Marcar Todas';
+  }
 }
 
 function extractSubCategories() {
   const subSet = new Set();
   
   AppState.places.forEach(p => {
+    // Sincroniza apenas com locais que pertencem ao segmento comercial ativo
+    if (!isPlaceMatchingActiveSegment(p)) return;
+
     if (!p.subCategory) {
       if (p.tags && p.tags.length > 0) {
         p.subCategory = p.tags[0];
@@ -359,12 +449,8 @@ function extractSubCategories() {
 
   AppState.availableSubCategories = Array.from(subSet).sort((a, b) => a.localeCompare(b));
   
-  const validSelected = AppState.selectedSubCategories.filter(s => AppState.availableSubCategories.includes(s));
-  if (validSelected.length === 0 && AppState.availableSubCategories.length > 0) {
-    AppState.selectedSubCategories = [...AppState.availableSubCategories];
-  } else {
-    AppState.selectedSubCategories = validSelected;
-  }
+  // Assegura que subcategorias ativas no segmento fiquem marcadas por padrão
+  AppState.selectedSubCategories = [...AppState.availableSubCategories];
 }
 
 function filterPlaces() {
@@ -375,24 +461,11 @@ function filterPlaces() {
   const selectedMachines = AppState.selectedCardMachines;
   const radiusKm = AppState.radiusFilter;
   const userCoords = AppState.userCoordinates;
-  const segmentFilter = AppState.commercialSegmentFilter;
-  const hideChains = AppState.hideChains;
 
   AppState.filteredPlaces = AppState.places.filter(place => {
-    // 0. Filtro de Redes de Supermercados
-    if (hideChains && place.isChain) {
+    // Validação do Segmento Comercial, Redes e Origem dos Leads
+    if (!isPlaceMatchingActiveSegment(place)) {
       return false;
-    }
-
-    // 0.1 Filtro de Segmento Comercial / Giro Rápido / Novos CNPJs / Parcelados Alto Valor
-    if (segmentFilter === 'high_turnover') {
-      if (!place.isHighTurnover) return false;
-    } else if (segmentFilter === 'high_ticket') {
-      if (!place.isHighTicket) return false;
-    } else if (segmentFilter === 'novo_cnpj') {
-      if (!place.cnpj && (!place.tags || !place.tags.includes('Novo CNPJ'))) return false;
-    } else if (segmentFilter !== 'all') {
-      if (place.commercialSegment !== segmentFilter) return false;
     }
 
     // 1. Categoria Principal
@@ -474,15 +547,27 @@ function updateCategoryCounts() {
   let negotiatingCount = 0;
   let followUpCount = 0;
   let closedCount = 0;
+  let googleTotal = 0;
+  let cnpjTotal = 0;
 
   AppState.places.forEach(p => {
-    if (counts[p.category] !== undefined) counts[p.category]++;
+    // Contagem de categorias contextualizada ao segmento comercial ativo
+    if (isPlaceMatchingActiveSegment(p)) {
+      if (counts[p.category] !== undefined) counts[p.category]++;
+    }
+
     const stage = p.crmStage || (p.visited ? 'negotiating' : 'lead');
     if (stage === 'lead') leadCount++;
     else if (stage === 'negotiating') negotiatingCount++;
     else if (stage === 'closed') closedCount++;
 
     if (p.followUpDate) followUpCount++;
+
+    // Origens dos Leads (Google Maps & Receita Federal CNPJs)
+    const isGoogle = p.isFromGoogle !== false && !(p.id && String(p.id).startsWith('cnpj_'));
+    const isCnpj = Boolean(p.isFromCnpj || p.cnpj || (p.id && String(p.id).startsWith('cnpj_')));
+    if (isGoogle) googleTotal++;
+    if (isCnpj) cnpjTotal++;
 
     // Segmentos Comerciais
     if (!AppState.hideChains || !p.isChain) {
@@ -523,6 +608,12 @@ function updateCategoryCounts() {
   const allEl = document.getElementById('count-all');
   if (allEl) allEl.textContent = AppState.places.length;
 
+  // Atualizar contadores da seção Origem dos Leads
+  const googleCountEl = document.getElementById('count-source-google');
+  if (googleCountEl) googleCountEl.textContent = googleTotal;
+  const cnpjCountEl = document.getElementById('count-source-cnpj');
+  if (cnpjCountEl) cnpjCountEl.textContent = cnpjTotal;
+
   Object.keys(counts).forEach(cat => {
     const el = document.getElementById(`count-${cat}`);
     if (el) el.textContent = counts[cat];
@@ -535,8 +626,11 @@ function updateCategoryCounts() {
       dropText.textContent = 'Todas Categorias';
     } else if (AppState.selectedCategories.length === 0) {
       dropText.textContent = 'Nenhuma';
+    } else if (AppState.selectedCategories.length === 1) {
+      const catKey = AppState.selectedCategories[0];
+      dropText.textContent = AppState.categoryNames[catKey] || catKey;
     } else {
-      dropText.textContent = `${AppState.selectedCategories.length} Selecionadas`;
+      dropText.textContent = `${AppState.selectedCategories.length} Categorias`;
     }
   }
 
@@ -587,6 +681,7 @@ function renderSubCategoryOptions() {
 
   const subCounts = {};
   AppState.places.forEach(p => {
+    if (!isPlaceMatchingActiveSegment(p)) return;
     if (p.subCategory) {
       const s = p.subCategory.trim();
       subCounts[s] = (subCounts[s] || 0) + 1;
@@ -632,6 +727,7 @@ function renderCardMachineOptions() {
 
   const machineCounts = {};
   AppState.places.forEach(p => {
+    if (!isPlaceMatchingActiveSegment(p)) return;
     const m = p.cardMachine || 'Não Informado';
     machineCounts[m] = (machineCounts[m] || 0) + 1;
   });
@@ -1465,10 +1561,36 @@ window.removeStopFromRoute = removeStopFromRoute;
 
 // --- EVENT LISTENERS GERAIS ---
 function setupEventListeners() {
-  // Toggle Sidebar Desktop
-  document.getElementById('toggleSidebarBtn').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('collapsed');
-    setTimeout(() => AppState.map.invalidateSize(), 300);
+  // Toggle Sidebar Desktop (Recolher)
+  const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+  if (toggleSidebarBtn) {
+    toggleSidebarBtn.addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+      setTimeout(() => AppState.map && AppState.map.invalidateSize(), 300);
+    });
+  }
+
+  // Botão Flutuante Desktop para Reabrir o Menu Lateral
+  const expandSidebarBtn = document.getElementById('expandSidebarBtn');
+  if (expandSidebarBtn) {
+    expandSidebarBtn.addEventListener('click', () => {
+      document.getElementById('sidebar').classList.remove('collapsed');
+      setTimeout(() => AppState.map && AppState.map.invalidateSize(), 300);
+    });
+  }
+
+  // Atalho de teclado para alternar o Menu Lateral: Ctrl+B
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
+      // Ignora se estiver digitando em input ou textarea
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+      e.preventDefault();
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) {
+        sidebar.classList.toggle('collapsed');
+        setTimeout(() => AppState.map && AppState.map.invalidateSize(), 300);
+      }
+    }
   });
 
   // Toggle Sidebar Mobile (Abrir e Fechar)
@@ -1642,6 +1764,7 @@ function setupEventListeners() {
         quickHighTicketBtn.classList.remove('active');
         const chipAll = document.querySelector('#commercialSegmentChips .commercial-chip[data-segment="all"]');
         if (chipAll) chipAll.classList.add('active');
+        syncCommercialSegmentCategories();
         updateUI();
         showToast('Exibindo todos os estabelecimentos.');
       } else {
@@ -1649,6 +1772,7 @@ function setupEventListeners() {
         quickHighTicketBtn.classList.add('active');
         if (quickCnpjBtn) quickCnpjBtn.classList.remove('active');
         document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(c => c.classList.remove('active'));
+        syncCommercialSegmentCategories();
         updateUI();
         showToast('💎 Exibindo alvos de parcelamento e alto ticket!');
       }
@@ -1663,6 +1787,7 @@ function setupEventListeners() {
         quickCnpjBtn.classList.remove('active');
         const chipAll = document.querySelector('#commercialSegmentChips .commercial-chip[data-segment="all"]');
         if (chipAll) chipAll.classList.add('active');
+        syncCommercialSegmentCategories();
         updateUI();
         showToast('Exibindo todos os estabelecimentos.');
       } else {
@@ -1672,6 +1797,7 @@ function setupEventListeners() {
         document.querySelectorAll('#commercialSegmentChips .commercial-chip').forEach(c => c.classList.remove('active'));
         const chipCnpj = document.querySelector('#commercialSegmentChips .commercial-chip[data-segment="novo_cnpj"]');
         if (chipCnpj) chipCnpj.classList.add('active');
+        syncCommercialSegmentCategories();
         updateUI();
         showToast('🏢 Exibindo empresas com CNPJ Oficial da Receita Federal!');
       }
@@ -1693,6 +1819,7 @@ function setupEventListeners() {
         quickCnpjBtn.classList.toggle('active', segment === 'novo_cnpj');
       }
 
+      syncCommercialSegmentCategories();
       updateUI();
       const segName = AppState.segmentNames[segment] || 'Todos os estabelecimentos';
       showToast(`Filtrado por: ${segName}`);
@@ -1704,6 +1831,7 @@ function setupEventListeners() {
   if (hideChainsCb) {
     hideChainsCb.addEventListener('change', () => {
       AppState.hideChains = hideChainsCb.checked;
+      syncCommercialSegmentCategories();
       updateUI();
       showToast(AppState.hideChains ? 'Grandes redes corporativas ocultadas!' : 'Grandes redes visíveis no mapa.');
     });
@@ -2029,6 +2157,105 @@ function setupEventListeners() {
       showToast('🧹 Base zerada com sucesso!');
     }
   });
+
+  // Seletor de Origem dos Leads (Google Maps & Receita Federal)
+  setupSourceFilterListeners();
+}
+
+// --- SELETOR DE ORIGEM DOS LEADS: GOOGLE MAPS & RECEITA FEDERAL (PADRÃO: AMBOS ATIVOS) ---
+function updateSourceFilterUI() {
+  const googleBtn = document.getElementById('sourceGoogleBtn');
+  const cnpjBtn = document.getElementById('sourceCnpjBtn');
+  const subtitle = document.getElementById('leadSourceSubtitle');
+
+  const gActive = AppState.sourceFilters ? AppState.sourceFilters.google : true;
+  const cActive = AppState.sourceFilters ? AppState.sourceFilters.cnpj : true;
+
+  if (googleBtn) {
+    googleBtn.classList.toggle('active', gActive);
+    googleBtn.setAttribute('aria-pressed', String(gActive));
+  }
+  if (cnpjBtn) {
+    cnpjBtn.classList.toggle('active', cActive);
+    cnpjBtn.setAttribute('aria-pressed', String(cActive));
+  }
+
+  if (subtitle) {
+    subtitle.className = 'lead-source-subtitle';
+    if (gActive && cActive) {
+      subtitle.classList.add('both');
+      subtitle.textContent = 'Ambos ativos';
+      subtitle.title = 'Clique para ver opções';
+    } else if (gActive) {
+      subtitle.classList.add('google');
+      subtitle.textContent = 'Apenas Google';
+      subtitle.title = 'Clique para ver ambos';
+    } else if (cActive) {
+      subtitle.classList.add('cnpj');
+      subtitle.textContent = 'Apenas CNPJs';
+      subtitle.title = 'Clique para ver ambos';
+    } else {
+      subtitle.textContent = 'Nenhum ativo';
+    }
+  }
+}
+
+function setupSourceFilterListeners() {
+  const googleBtn = document.getElementById('sourceGoogleBtn');
+  const cnpjBtn = document.getElementById('sourceCnpjBtn');
+  const subtitle = document.getElementById('leadSourceSubtitle');
+
+  if (googleBtn) {
+    googleBtn.addEventListener('click', () => {
+      // Se ambos estão ativos e o usuário clica no Google -> isola Google (apenas Google)
+      if (AppState.sourceFilters.google && AppState.sourceFilters.cnpj) {
+        AppState.sourceFilters.google = true;
+        AppState.sourceFilters.cnpj = false;
+        showToast('📍 Exibindo apenas leads do Google Maps.');
+      } else if (AppState.sourceFilters.google && !AppState.sourceFilters.cnpj) {
+        // Se já estava apenas Google e clica novamente -> volta para ambos
+        AppState.sourceFilters.cnpj = true;
+        showToast('🔄 Exibindo ambos: Google Maps e CNPJs.');
+      } else {
+        // Estava apenas CNPJ e clicou no Google -> ativa Google (ambos ativos)
+        AppState.sourceFilters.google = true;
+        showToast('🔄 Exibindo ambos: Google Maps e CNPJs.');
+      }
+      syncCommercialSegmentCategories();
+      updateUI();
+    });
+  }
+
+  if (cnpjBtn) {
+    cnpjBtn.addEventListener('click', () => {
+      // Se ambos estão ativos e o usuário clica no CNPJ -> isola CNPJ (apenas CNPJ)
+      if (AppState.sourceFilters.google && AppState.sourceFilters.cnpj) {
+        AppState.sourceFilters.google = false;
+        AppState.sourceFilters.cnpj = true;
+        showToast('🏢 Exibindo apenas CNPJs da Receita Federal.');
+      } else if (!AppState.sourceFilters.google && AppState.sourceFilters.cnpj) {
+        // Se já estava apenas CNPJ e clica novamente -> volta para ambos
+        AppState.sourceFilters.google = true;
+        showToast('🔄 Exibindo ambos: Google Maps e CNPJs.');
+      } else {
+        // Estava apenas Google e clicou no CNPJ -> ativa CNPJ (ambos ativos)
+        AppState.sourceFilters.cnpj = true;
+        showToast('🔄 Exibindo ambos: Google Maps e CNPJs.');
+      }
+      syncCommercialSegmentCategories();
+      updateUI();
+    });
+  }
+
+  if (subtitle) {
+    subtitle.addEventListener('click', () => {
+      AppState.sourceFilters.google = true;
+      AppState.sourceFilters.cnpj = true;
+      showToast('🔄 Exibindo ambos: Google Maps e CNPJs.');
+      syncCommercialSegmentCategories();
+      updateUI();
+    });
+  }
 }
 
 // --- SUPORTE COMPLETO A ROLAGEM HORIZONTAL (MOUSE WHEEL, DRAG & TOUCH) ---
@@ -3318,6 +3545,8 @@ async function loadCnpjLeadsIntoPlaces() {
       }
 
       if (matchedPlace) {
+        matchedPlace.isFromGoogle = true;
+        matchedPlace.isFromCnpj = true;
         matchedPlace.cnpj = cnpjFmt;
         matchedPlace.razaoSocial = c.razao_social;
         matchedPlace.capitalSocial = c.capital_social;
@@ -3390,6 +3619,8 @@ async function loadCnpjLeadsIntoPlaces() {
 
           const newPlace = {
             id: id,
+            isFromGoogle: false,
+            isFromCnpj: true,
             name: c.nome_fantasia || c.razao_social,
             razaoSocial: c.razao_social,
             category: determineCategoryFromCnae(cnaeCode),
