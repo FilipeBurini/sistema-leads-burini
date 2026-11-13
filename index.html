@@ -131,7 +131,7 @@
             <i class="ri-close-line"></i>
           </button>
         </div>
-        <button id="locateMeBtn" class="locate-btn" title="Minha Localização Atual">
+        <button id="locateMeBtn" class="locate-btn tracking-active" title="Rastreamento em tempo real ATIVO (Clique para centralizar)">
           <i class="ri-crosshair-2-line"></i>
         </button>
       </div>
@@ -347,11 +347,11 @@
             <i class="ri-radar-fill" style="color: #38bdf8;"></i>
             <span>Raio de Distância (GPS):</span>
           </div>
-          <span class="radius-current-val" id="radiusCurrentVal">Sem limite</span>
+          <span class="radius-current-val" id="radiusCurrentVal">500m</span>
         </div>
         <div class="radius-pills" id="radiusPills">
-          <button class="radius-pill active" data-radius="all">Todos</button>
-          <button class="radius-pill" data-radius="0.5">500m</button>
+          <button class="radius-pill" data-radius="all">Todos</button>
+          <button class="radius-pill active" data-radius="0.5">500m</button>
           <button class="radius-pill" data-radius="1">1 km</button>
           <button class="radius-pill" data-radius="2">2 km</button>
           <button class="radius-pill" data-radius="5">5 km</button>
@@ -431,8 +431,9 @@
         </div>
       </div>
 
-      <!-- FILTRO DE MAQUININHA DE CARTÃO (CRM / NEGOCIAÇÃO) -->
-      <div class="filters-machine-row">
+      <!-- FILTROS DUPLOS: MAQUININHAS & CAPITAL SOCIAL (CNPJ) -->
+      <div class="filters-dual-row" style="padding-top: 0.15rem; padding-bottom: 0.5rem;">
+        <!-- FILTRO DE MAQUININHA DE CARTÃO (CRM / NEGOCIAÇÃO) -->
         <div class="category-dropdown-wrapper">
           <button class="category-dropdown-btn machine-filter-btn" id="machineDropdownBtn">
             <div class="cat-drop-label">
@@ -450,6 +451,29 @@
               </div>
             </div>
             <div class="multiselect-options" id="machineOptionsList">
+              <!-- Injetado dinamicamente via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTRO DE CAPITAL SOCIAL (CNPJ) -->
+        <div class="category-dropdown-wrapper">
+          <button class="category-dropdown-btn capital-filter-btn" id="capitalDropdownBtn">
+            <div class="cat-drop-label">
+              <i class="ri-funds-box-line" style="color: #34d399;"></i>
+              <span id="selectedCapitalText">Capital Social</span>
+            </div>
+            <i class="ri-arrow-down-s-line arrow-icon"></i>
+          </button>
+          <div class="category-multiselect-menu" id="capitalMultiselectMenu">
+            <div class="multiselect-header">
+              <span>Capital Social (CNPJ)</span>
+              <div class="multiselect-actions">
+                <button type="button" id="selectAllCapitalBtn">Todas</button>
+                <button type="button" id="clearAllCapitalBtn">Limpar</button>
+              </div>
+            </div>
+            <div class="multiselect-options" id="capitalOptionsList">
               <!-- Injetado dinamicamente via JS -->
             </div>
           </div>

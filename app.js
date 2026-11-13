@@ -20,10 +20,11 @@ const AppState = {
   selectedCategories: ['alimentacao', 'comercio', 'saude', 'lazer', 'servicos'],
   selectedSubCategories: [], // Vazio significa todas as disponíveis
   crmStageFilter: 'lead', // 'lead' (A Visitar / padrão), 'negotiating', 'follow_up', 'closed', 'all'
-  radiusFilter: null, // null (todos) ou valor em km (ex: 0.5, 1, 2, 5, 10)
+  radiusFilter: 0.5, // Padrão: 500m (0.5 km) para máxima performance e foco geográfico
   radiusCircle: null,
   selectedCardMachines: [], // Vazio significa todas as disponíveis
   availableCardMachines: ['Stone', 'Cielo', 'Rede', 'PagBank', 'Getnet', 'SafraPay', 'InfinitePay', 'Mercado Pago', 'Ton', 'C6 Bank', 'Outra', 'Não Informado'],
+  selectedCapitalRanges: [], // Vazio significa todas as faixas disponíveis
   searchQuery: '',
   sourceFilters: {
     google: true,
@@ -131,8 +132,39 @@ const AppState = {
   routePolyline: null
 };
 
+// --- FAIXAS DE CAPITAL SOCIAL (CNPJ) ---
+const CAPITAL_RANGES = [
+  { id: 'micro', label: 'Até R$ 10 mil', min: 0.01, max: 10000, color: '#94a3b8' },
+  { id: 'small', label: 'R$ 10 mil a 50 mil', min: 10000.01, max: 50000, color: '#38bdf8' },
+  { id: 'medium', label: 'R$ 50 mil a 100 mil', min: 50000.01, max: 100000, color: '#818cf8' },
+  { id: 'high', label: 'R$ 100 mil a 500 mil', min: 100000.01, max: 500000, color: '#a855f7' },
+  { id: 'top', label: 'Acima de R$ 500 mil', min: 500000.01, max: Infinity, color: '#34d399' },
+  { id: 'none', label: 'Sem Capital / Não Inf.', min: 0, max: 0, color: '#64748b' }
+];
+
+function getCapitalRangeId(val) {
+  const cap = Number(val || 0);
+  if (!cap || isNaN(cap) || cap <= 0) return 'none';
+  if (cap <= 10000) return 'micro';
+  if (cap <= 50000) return 'small';
+  if (cap <= 100000) return 'medium';
+  if (cap <= 500000) return 'high';
+  return 'top';
+}
+
 // --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', async () => {
+  // 1. Restaurar última localização conhecida do usuário (para filtro 500m imediato sem lentidão)
+  try {
+    const cachedCoords = localStorage.getItem('map_last_user_coords');
+    if (cachedCoords) {
+      const parsed = JSON.parse(cachedCoords);
+      if (Array.isArray(parsed) && parsed.length === 2 && !isNaN(parsed[0]) && !isNaN(parsed[1])) {
+        AppState.userCoordinates = parsed;
+      }
+    }
+  } catch (e) {}
+
   initMap();
   await loadInitialPlaces();
   await loadCnpjLeadsIntoPlaces();
@@ -141,7 +173,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupHorizontalScrollHelpers();
   setupCloudSyncIntegration();
   syncCommercialSegmentCategories();
+
+  // 2. Sempre com a localização ativada (rastreamento contínuo em tempo real iniciado automaticamente)
+  startLiveLocationTracking(true);
+
   updateUI();
+  updateRadiusCircleOnMap(false);
 
   // Atualização periódica do status de funcionamento a cada 60 segundos
   setInterval(() => {
@@ -152,12 +189,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // --- INICIALIZAR MAPA COM TILES CUSTOMIZADOS ---
 function initMap() {
-  // Ponto central padrão inicial (Franca - SP / Brasil)
-  const defaultCenter = [-20.5385, -47.4009];
+  // Ponto central padrão inicial: usa localização do usuário se disponível ou Franca - SP
+  const defaultCenter = AppState.userCoordinates || [-20.5385, -47.4009];
 
   AppState.map = L.map('map', {
     zoomControl: false
-  }).setView(defaultCenter, 14);
+  }).setView(defaultCenter, AppState.userCoordinates ? 16 : 14);
 
   // Mover controles de zoom para o canto inferior direito
   L.control.zoom({ position: 'bottomright' }).addTo(AppState.map);
@@ -351,6 +388,7 @@ function updateUI() {
   updateSourceFilterUI();
   renderSubCategoryOptions();
   renderCardMachineOptions();
+  renderCapitalRangeOptions();
 }
 
 // --- VALIDAÇÃO DO SEGMENTO COMERCIAL, ORIGEM E REDES ---
@@ -459,6 +497,7 @@ function filterPlaces() {
   const selectedSubs = AppState.selectedSubCategories;
   const stageFilter = AppState.crmStageFilter;
   const selectedMachines = AppState.selectedCardMachines;
+  const selectedCapitals = AppState.selectedCapitalRanges;
   const radiusKm = AppState.radiusFilter;
   const userCoords = AppState.userCoordinates;
 
@@ -492,14 +531,30 @@ function filterPlaces() {
     // 4. Maquininha de Cartão
     let matchMachine = true;
     if (selectedMachines.length > 0) {
-      const machine = place.cardMachine || 'Não Informado';
-      matchMachine = selectedMachines.includes(machine);
+      if (selectedMachines.includes('__NONE__')) {
+        matchMachine = false;
+      } else {
+        const machine = place.cardMachine || 'Não Informado';
+        matchMachine = selectedMachines.includes(machine);
+      }
+    }
+
+    // 4.1 Faixa de Capital Social (CNPJ)
+    let matchCapital = true;
+    if (selectedCapitals.length > 0) {
+      if (selectedCapitals.includes('__NONE__')) {
+        matchCapital = false;
+      } else {
+        const capRange = getCapitalRangeId(place.capitalSocial);
+        matchCapital = selectedCapitals.includes(capRange);
+      }
     }
 
     // 5. Filtro de Raio de Distância (GPS)
     let matchRadius = true;
-    if (userCoords) {
-      const dist = calculateDistanceKm(userCoords[0], userCoords[1], place.lat, place.lng);
+    const activeCoords = userCoords || (radiusKm ? [-20.5385, -47.4009] : null);
+    if (activeCoords) {
+      const dist = calculateDistanceKm(activeCoords[0], activeCoords[1], place.lat, place.lng);
       place._distanceMeters = dist * 1000;
       if (radiusKm) {
         matchRadius = dist <= radiusKm;
@@ -522,7 +577,7 @@ function filterPlaces() {
       (place.description && place.description.toLowerCase().includes(query)) ||
       (place.tags && place.tags.some(tag => tag.toLowerCase().includes(query)));
 
-    return matchCategory && matchSubCategory && matchStage && matchMachine && matchRadius && matchSearch;
+    return matchCategory && matchSubCategory && matchStage && matchMachine && matchCapital && matchRadius && matchSearch;
   });
 
   // Ordenação
@@ -663,6 +718,19 @@ function updateCategoryCounts() {
     }
   }
 
+  // Atualizar texto do dropdown de capital social (CNPJ)
+  const capitalDropText = document.getElementById('selectedCapitalText');
+  if (capitalDropText) {
+    if (AppState.selectedCapitalRanges.length === 0) {
+      capitalDropText.textContent = 'Capital Social';
+    } else if (AppState.selectedCapitalRanges.length === 1) {
+      const matched = CAPITAL_RANGES.find(r => r.id === AppState.selectedCapitalRanges[0]);
+      capitalDropText.textContent = matched ? matched.label : '1 Faixa';
+    } else {
+      capitalDropText.textContent = `${AppState.selectedCapitalRanges.length} Faixas`;
+    }
+  }
+
   document.getElementById('placesCountText').textContent = `${AppState.filteredPlaces.length} locais encontrados`;
   const mobileCount = document.getElementById('mobilePlacesCount');
   if (mobileCount) mobileCount.textContent = AppState.filteredPlaces.length;
@@ -758,6 +826,58 @@ function renderCardMachineOptions() {
         AppState.selectedCardMachines = [];
       } else {
         AppState.selectedCardMachines = checkedBoxes;
+      }
+
+      filterPlaces();
+      renderPlacesList();
+      renderMapMarkers();
+      updateCategoryCounts();
+    });
+  });
+}
+
+function renderCapitalRangeOptions() {
+  const container = document.getElementById('capitalOptionsList');
+  if (!container) return;
+
+  const rangeCounts = {
+    micro: 0,
+    small: 0,
+    medium: 0,
+    high: 0,
+    top: 0,
+    none: 0
+  };
+
+  AppState.places.forEach(p => {
+    if (!isPlaceMatchingActiveSegment(p)) return;
+    const rId = getCapitalRangeId(p.capitalSocial);
+    if (rangeCounts[rId] !== undefined) {
+      rangeCounts[rId]++;
+    }
+  });
+
+  container.innerHTML = CAPITAL_RANGES.map(r => {
+    const isChecked = AppState.selectedCapitalRanges.length === 0 || AppState.selectedCapitalRanges.includes(r.id);
+    const count = rangeCounts[r.id] || 0;
+
+    return `
+      <label class="multiselect-option">
+        <input type="checkbox" value="${r.id}" class="capital-checkbox" ${isChecked ? 'checked' : ''}>
+        <span class="cat-dot" style="background: ${r.color};"></span>
+        <span class="cat-name">${escapeHtml(r.label)}</span>
+        <b class="badge">${count}</b>
+      </label>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.capital-checkbox').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const checkedBoxes = Array.from(container.querySelectorAll('.capital-checkbox:checked')).map(c => c.value);
+      if (checkedBoxes.length === CAPITAL_RANGES.length || checkedBoxes.length === 0) {
+        AppState.selectedCapitalRanges = [];
+      } else {
+        AppState.selectedCapitalRanges = checkedBoxes;
       }
 
       filterPlaces();
@@ -1651,6 +1771,9 @@ function setupEventListeners() {
 
   catDropBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (subCatMenu) subCatMenu.classList.remove('show');
+    if (machineMenu) machineMenu.classList.remove('show');
+    if (capitalMenu) capitalMenu.classList.remove('show');
     catMenu.classList.toggle('show');
   });
 
@@ -1701,6 +1824,7 @@ function setupEventListeners() {
     e.stopPropagation();
     catMenu.classList.remove('show');
     if (machineMenu) machineMenu.classList.remove('show');
+    if (capitalMenu) capitalMenu.classList.remove('show');
     subCatMenu.classList.toggle('show');
   });
 
@@ -1719,6 +1843,7 @@ function setupEventListeners() {
       e.stopPropagation();
       catMenu.classList.remove('show');
       subCatMenu.classList.remove('show');
+      if (capitalMenu) capitalMenu.classList.remove('show');
       machineMenu.classList.toggle('show');
     });
 
@@ -1739,6 +1864,40 @@ function setupEventListeners() {
       e.stopPropagation();
       AppState.selectedCardMachines = ['__NONE__'];
       document.querySelectorAll('.machine-checkbox').forEach(cb => cb.checked = false);
+      updateUI();
+    });
+  }
+
+  // Dropdown Multiselect de Capital Social (CNPJ)
+  const capitalDropBtn = document.getElementById('capitalDropdownBtn');
+  const capitalMenu = document.getElementById('capitalMultiselectMenu');
+
+  if (capitalDropBtn && capitalMenu) {
+    capitalDropBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      catMenu.classList.remove('show');
+      subCatMenu.classList.remove('show');
+      if (machineMenu) machineMenu.classList.remove('show');
+      capitalMenu.classList.toggle('show');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!capitalMenu.contains(e.target) && !capitalDropBtn.contains(e.target)) {
+        capitalMenu.classList.remove('show');
+      }
+    });
+
+    document.getElementById('selectAllCapitalBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      AppState.selectedCapitalRanges = [];
+      document.querySelectorAll('.capital-checkbox').forEach(cb => cb.checked = true);
+      updateUI();
+    });
+
+    document.getElementById('clearAllCapitalBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      AppState.selectedCapitalRanges = ['__NONE__'];
+      document.querySelectorAll('.capital-checkbox').forEach(cb => cb.checked = false);
       updateUI();
     });
   }
@@ -2507,12 +2666,18 @@ function startLiveLocationTracking(autoCenter = true) {
       AppState.userCoordinates = [latitude, longitude];
       AppState.userAccuracy = accuracy;
 
+      try {
+        localStorage.setItem('map_last_user_coords', JSON.stringify([latitude, longitude]));
+      } catch (e) {}
+
       updateUserLocationMarker(latitude, longitude, accuracy);
 
       if (AppState.radiusFilter) {
         updateRadiusCircleOnMap();
         filterPlaces();
         renderPlacesList();
+        renderMapMarkers();
+        updateCategoryCounts();
       }
 
       if (isFirst || (isFirstFix && autoCenter)) {
@@ -2832,7 +2997,9 @@ window.setDistanceRadius = function(radiusKm) {
 function updateRadiusCircleOnMap(autoFit = false) {
   if (!AppState.map) return;
 
-  if (!AppState.radiusFilter || !AppState.userCoordinates) {
+  const circleCenter = AppState.userCoordinates || (AppState.radiusFilter ? [-20.5385, -47.4009] : null);
+
+  if (!AppState.radiusFilter || !circleCenter) {
     if (AppState.radiusCircle) {
       AppState.map.removeLayer(AppState.radiusCircle);
       AppState.radiusCircle = null;
@@ -2843,7 +3010,7 @@ function updateRadiusCircleOnMap(autoFit = false) {
   const radiusMeters = AppState.radiusFilter * 1000;
 
   if (!AppState.radiusCircle) {
-    AppState.radiusCircle = L.circle(AppState.userCoordinates, {
+    AppState.radiusCircle = L.circle(circleCenter, {
       radius: radiusMeters,
       color: '#38bdf8',
       fillColor: '#38bdf8',
@@ -2853,7 +3020,7 @@ function updateRadiusCircleOnMap(autoFit = false) {
       interactive: false
     }).addTo(AppState.map);
   } else {
-    AppState.radiusCircle.setLatLng(AppState.userCoordinates);
+    AppState.radiusCircle.setLatLng(circleCenter);
     AppState.radiusCircle.setRadius(radiusMeters);
   }
 

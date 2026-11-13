@@ -1376,9 +1376,14 @@ body {
   backdrop-filter: blur(14px);
 }
 
-#subCategoryMultiselectMenu {
+#subCategoryMultiselectMenu,
+#capitalMultiselectMenu {
   left: auto;
   right: 0;
+}
+
+.capital-filter-btn {
+  background: rgba(30, 41, 59, 0.7);
 }
 
 .category-multiselect-menu.show {
