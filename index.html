@@ -499,6 +499,7 @@
             <i class="ri-more-2-fill"></i>
           </button>
           <div class="dropdown-menu" id="dataDropdownMenu">
+            <button id="openSavedRoutesBtn" style="color: #10b981; font-weight: 700;"><i class="ri-bookmark-3-fill"></i> Minhas Rotas Salvas (<span id="savedRoutesCountBadge">0</span>)</button>
             <button id="openCnpjExplorerBtn" style="color: #38bdf8;"><i class="ri-file-text-line"></i> Consultar Base de CNPJs & Dossiês</button>
             <button id="triggerApifyImportBtn" class="text-success"><i class="ri-file-excel-2-line"></i> Importar Planilha Apify (XLSX / CSV)</button>
             <button id="exportDefaultPlacesBtn" class="text-warning" style="color: #facc15;"><i class="ri-git-branch-line"></i> Baixar default-places.json (para Git)</button>
@@ -509,6 +510,31 @@
             <input type="file" id="importFileInput" accept=".json" style="display: none;">
             <input type="file" id="importApifyFileInput" accept=".xlsx, .xls, .csv" style="display: none;">
           </div>
+        </div>
+      </div>
+
+      <!-- BANNER DE ROTA ATIVA (QUANDO UMA ROTA ESTÁ SENDO NAVEGADA) -->
+      <div class="active-route-banner" id="activeRouteBanner" style="display: none;">
+        <div class="active-route-top">
+          <div class="active-route-tag">
+            <span class="active-pulse-dot"></span>
+            <strong>MODO ROTA ATIVA</strong>
+          </div>
+          <button type="button" class="btn-exit-route" id="exitActiveRouteBtn" title="Sair da rota e voltar a ver todos os comércios">
+            <i class="ri-close-line"></i> Sair da Rota
+          </button>
+        </div>
+        <div class="active-route-info">
+          <h4 id="activeRouteNameDisplay">Circuito de Vendas</h4>
+          <span id="activeRouteMetaDisplay">10 paradas • ~2.8 km</span>
+        </div>
+        <div class="active-route-actions-row">
+          <button type="button" class="btn btn-sm btn-google-maps" id="activeRouteGoogleMapsBtn">
+            <i class="ri-google-fill"></i> Iniciar no Google Maps
+          </button>
+          <button type="button" class="btn btn-sm btn-secondary" id="activeRouteManageBtn" title="Ver itinerário detalhado">
+            <i class="ri-list-ordered"></i> Ver Itinerário
+          </button>
         </div>
       </div>
 
@@ -817,14 +843,20 @@
 
         <!-- BOTÕES DE AÇÃO E EXPORTAÇÃO PARA O GOOGLE MAPS -->
         <div class="route-export-actions">
+          <button id="focusActiveRouteBtn" class="btn btn-primary" style="flex: 2; background: linear-gradient(135deg, #10b981, #059669);" disabled>
+            <i class="ri-focus-3-fill"></i> Ativar Rota no Mapa
+          </button>
           <button id="openGoogleMapsRouteBtn" class="btn btn-google-maps" disabled>
-            <i class="ri-google-fill"></i> Iniciar Rota no Google Maps
+            <i class="ri-google-fill"></i> Google Maps
           </button>
-          <button id="drawRouteOnMapBtn" class="btn btn-primary" disabled>
-            <i class="ri-road-map-line"></i> Traçar Rota no Mapa
+          <button id="saveManualRouteBtn" class="btn btn-secondary" title="Salvar este itinerário no sistema">
+            <i class="ri-save-3-line"></i> Salvar
           </button>
-          <button id="clearRouteBtn" class="btn btn-secondary" title="Limpar todos os pontos">
-            <i class="ri-delete-bin-line"></i> Limpar
+          <button id="openSavedRoutesFromModalBtn" class="btn btn-secondary" title="Ver rotas salvas anteriormente">
+            <i class="ri-bookmark-3-line"></i> Salvas
+          </button>
+          <button id="clearRouteBtn" class="btn btn-secondary icon-only" title="Limpar todos os pontos">
+            <i class="ri-delete-bin-line"></i>
           </button>
         </div>
       </div>
@@ -1006,6 +1038,21 @@
           </div>
         </div>
 
+        <!-- PASSO 4: IDENTIFICAÇÃO E SALVAMENTO -->
+        <div class="smart-step-section">
+          <div class="smart-step-title">
+            <span class="step-num">4</span>
+            <h4>Identificação da Rota & Salvar</h4>
+          </div>
+          <div class="smart-route-name-row">
+            <input type="text" id="smartRouteNameInput" placeholder="Ex: Rota Centro - Recusados">
+            <label class="smart-save-checkbox">
+              <input type="checkbox" id="smartRouteSaveCheck" checked>
+              <span>Salvar esta rota no sistema para acessar depois</span>
+            </label>
+          </div>
+        </div>
+
         <!-- RESUMO EM TEMPO REAL -->
         <div class="smart-route-preview-box" id="smartRoutePreviewBox">
           <div class="preview-icon">
@@ -1025,6 +1072,30 @@
           <button type="button" id="cancelSmartRouteBtn" class="btn btn-secondary">
             Cancelar
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: MINHAS ROTAS SALVAS -->
+  <div class="modal-overlay" id="savedRoutesModal">
+    <div class="modal-card saved-routes-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <i class="ri-bookmark-3-fill" style="color: #10b981; font-size: 1.3rem;"></i>
+          <div>
+            <h3>Minhas Rotas Salvas</h3>
+            <span style="font-size: 0.78rem; color: var(--text-secondary);">Acesse rapidamente seus roteiros salvos para navegar e focar apenas neles</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeSavedRoutesModalBtn">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <div class="saved-routes-modal-body">
+        <div class="saved-routes-list" id="savedRoutesList">
+          <!-- Injetado dinamicamente -->
         </div>
       </div>
     </div>

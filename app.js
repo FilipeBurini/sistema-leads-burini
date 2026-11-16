@@ -129,7 +129,11 @@ const AppState = {
     servicos: 'Serviços'
   },
   routeStops: [],
-  routePolyline: null
+  routePolyline: null,
+  routeMarkersGroup: null,
+  isRouteActive: false,
+  activeRouteName: '',
+  activeRouteId: null
 };
 
 // --- FAIXAS DE CAPITAL SOCIAL (CNPJ) ---
@@ -231,6 +235,9 @@ function initMap() {
     spiderfyOnMaxZoom: true
   });
   AppState.map.addLayer(AppState.markersGroup);
+
+  // Camada dedicada para Marcadores de Rota Ativa
+  AppState.routeMarkersGroup = L.layerGroup().addTo(AppState.map);
 
   // Clique com botão direito no mapa para adicionar novo local na coordenada clicada
   AppState.map.on('contextmenu', (e) => {
@@ -492,6 +499,14 @@ function extractSubCategories() {
 }
 
 function filterPlaces() {
+  // Se estiver no Modo Rota Ativa, mostra EXCLUSIVAMENTE os locais da rota em ordem
+  if (AppState.isRouteActive && AppState.routeStops && AppState.routeStops.length > 0) {
+    AppState.filteredPlaces = AppState.routeStops.map(stop => {
+      return AppState.places.find(p => p.id === stop.id) || stop;
+    });
+    return;
+  }
+
   const query = AppState.searchQuery.toLowerCase().trim();
   const selectedCats = AppState.selectedCategories;
   const selectedSubs = AppState.selectedSubCategories;
@@ -892,6 +907,13 @@ function renderPlacesList() {
   const container = document.getElementById('placesList');
   if (!container) return;
 
+  const countEl = document.getElementById('placesCountText');
+  if (AppState.isRouteActive) {
+    if (countEl) {
+      countEl.innerHTML = `<span style="color:#10b981; font-weight:800;"><i class="ri-route-fill"></i> Modo Rota: ${AppState.filteredPlaces.length} paradas</span>`;
+    }
+  }
+
   if (AppState.filteredPlaces.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
@@ -956,13 +978,21 @@ function renderPlacesList() {
       turnoverBadge = `<span class="local-independent-badge" title="Mercado Independente de Bairro"><i class="ri-checkbox-circle-line"></i> Independente</span>`;
     }
 
+    let routeStopBadge = '';
+    if (AppState.isRouteActive && AppState.routeStops) {
+      const stopIndex = AppState.routeStops.findIndex(s => s.id === place.id);
+      if (stopIndex !== -1) {
+        routeStopBadge = `<span style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 800; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; margin-right: 4px; box-shadow: 0 2px 6px rgba(16,185,129,0.35);"><i class="ri-flag-fill"></i> ${stopIndex + 1}ª Parada</span>`;
+      }
+    }
+
     return `
       <div class="place-item ${isActive} ${stage === 'closed' ? 'place-visited' : ''} ${!openStatus.isOpen ? 'place-closed' : ''}" data-id="${place.id}" onclick="selectPlace('${place.id}', true)">
         <div class="place-item-left">
           ${stageDot}
           <span class="place-item-dot" style="background: ${!openStatus.isOpen ? '#64748b' : (AppState.segmentColors[seg] || 'var(--color-primary)')}"></span>
           <div class="place-item-info">
-            <span class="place-item-name" title="${escapeHtml(place.name)}">${escapeHtml(place.name)}</span>
+            <span class="place-item-name" title="${escapeHtml(place.name)}">${routeStopBadge}${escapeHtml(place.name)}</span>
             <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap; margin-top: 2px;">
               ${segmentBadge}
               ${turnoverBadge}
@@ -979,8 +1009,85 @@ function renderPlacesList() {
   }).join('');
 }
 
+function renderActiveRouteMarkers() {
+  if (!AppState.routeMarkersGroup) return;
+  AppState.routeMarkersGroup.clearLayers();
+  
+  if (!AppState.routeStops || AppState.routeStops.length === 0) return;
+
+  const latlngs = [];
+
+  AppState.routeStops.forEach((place, index) => {
+    if (typeof place.lat !== 'number' || typeof place.lng !== 'number') return;
+    latlngs.push([place.lat, place.lng]);
+
+    const stopNum = index + 1;
+    const stage = place.crmStage || (place.visited ? 'negotiating' : 'lead');
+    let stageColor = '#3b82f6';
+    let stageLabel = 'A Visitar';
+    if (stage === 'rejected') {
+      stageColor = '#ef4444';
+      stageLabel = 'Recusado (Reconversão)';
+    } else if (stage === 'negotiating') {
+      stageColor = '#f59e0b';
+      stageLabel = 'Em Negociação';
+    } else if (stage === 'closed') {
+      stageColor = '#10b981';
+      stageLabel = 'Cliente Fechado';
+    } else if (stage === 'follow_up') {
+      stageColor = '#a855f7';
+      stageLabel = 'Retorno Agendado';
+    }
+
+    const pinHtml = `
+      <div class="route-stop-pin" style="color: ${stageColor};">
+        <i class="ri-map-pin-2-fill"></i>
+        <span class="route-pin-badge" style="background: ${stageColor};">${stopNum}</span>
+      </div>
+    `;
+
+    const icon = L.divIcon({
+      className: 'route-active-pin',
+      html: pinHtml,
+      iconSize: [36, 44],
+      iconAnchor: [18, 42],
+      popupAnchor: [0, -38]
+    });
+
+    const marker = L.marker([place.lat, place.lng], { icon, zIndexOffset: 2000 + stopNum });
+    
+    marker.on('click', () => {
+      selectPlace(place.id, false);
+    });
+
+    marker.bindPopup(`
+      <div class="route-pin-popup">
+        <div class="route-pin-popup-badge" style="background: ${stageColor};">#${stopNum} • ${stageLabel}</div>
+        <strong style="display:block; font-size: 0.95rem; margin-bottom: 0.2rem;">${escapeHtml(place.name)}</strong>
+        <p style="font-size: 0.78rem; color: #64748b; margin: 0 0 0.5rem;">${escapeHtml(place.address || '')}</p>
+        <button class="btn btn-sm btn-primary" onclick="selectPlace('${place.id}', true)">Ver Detalhes do Lead</button>
+      </div>
+    `);
+
+    AppState.routeMarkersGroup.addLayer(marker);
+  });
+
+  if (latlngs.length > 0 && AppState.map) {
+    AppState.map.fitBounds(L.latLngBounds(latlngs), { padding: [60, 60], maxZoom: 17 });
+  }
+}
+
 function renderMapMarkers() {
   AppState.markersGroup.clearLayers();
+  if (AppState.routeMarkersGroup) {
+    AppState.routeMarkersGroup.clearLayers();
+  }
+
+  // Se o Modo Rota Ativa estiver ligado, exibe EXCLUSIVAMENTE os marcadores da rota
+  if (AppState.isRouteActive) {
+    renderActiveRouteMarkers();
+    return;
+  }
 
   const now = new Date();
 
@@ -1944,24 +2051,248 @@ function generateSmartRoute() {
     curLng = nextStop.lng;
   }
 
-  // 4. Grava em AppState.routeStops
-  AppState.routeStops = optimizedRoute;
+  // 4. Calcula distância total estimada
+  let totalKm = 0;
+  for (let i = 0; i < optimizedRoute.length - 1; i++) {
+    totalKm += calculateDistanceKm(optimizedRoute[i].lat, optimizedRoute[i].lng, optimizedRoute[i+1].lat, optimizedRoute[i+1].lng);
+  }
 
-  // 5. Fecha assistente inteligente, atualiza paradas e traça no mapa
-  closeSmartRouteModal();
-  populateRoutePlaceSelector();
-  renderRouteStopsList();
-  drawRouteOnMap();
-  openRouteModal();
+  // 5. Nome da Rota & Identificação
+  const nameInput = document.getElementById('smartRouteNameInput');
+  const regionLabel = region === 'bairro' ? (selectedBairro || 'Bairro') : (region.charAt(0).toUpperCase() + region.slice(1));
+  const statusLabels = checkedBoxes.includes('rejected') ? 'Recusados' : (checkedBoxes.includes('lead') ? 'Novos' : 'Leads');
+  const defaultName = `Rota ${regionLabel} - ${statusLabels} (${optimizedRoute.length} paradas)`;
+  const routeName = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : defaultName;
+  const routeId = 'route_' + Date.now();
 
-  showToast(`⚡ Rota Inteligente gerada com sucesso! ${optimizedRoute.length} estabelecimentos no melhor circuito.`);
+  // 6. Salva no sistema se o checkbox estiver ativo
+  const shouldSave = (document.getElementById('smartRouteSaveCheck') || {}).checked !== false;
+  if (shouldSave) {
+    saveRouteToStorage({
+      id: routeId,
+      name: routeName,
+      createdAt: new Date().toISOString(),
+      region: region,
+      statusFilter: checkedBoxes,
+      stops: optimizedRoute,
+      totalDistanceKm: totalKm
+    });
+  }
+
+  // 7. ATIVA O MODO ROTA ATIVA: APENAS OS LEADS DA ROTA FICAM NO MAPA E NA SIDEBAR
+  activateRouteMode(optimizedRoute, routeName, routeId);
 }
+
+// =============================================================================
+// GERENCIADOR DE MODO ROTA ATIVA (FOCO EXCLUSIVO NOS LEADS DA ROTA)
+// =============================================================================
+function activateRouteMode(stops, routeName, routeId = null) {
+  if (!stops || stops.length === 0) {
+    showToast('Nenhuma parada encontrada para ativar na rota.');
+    return;
+  }
+
+  AppState.isRouteActive = true;
+  AppState.routeStops = [...stops];
+  AppState.activeRouteName = routeName || 'Circuito Ativo';
+  AppState.activeRouteId = routeId || ('route_' + Date.now());
+
+  // Atualiza banner de rota ativa na sidebar
+  const banner = document.getElementById('activeRouteBanner');
+  const nameEl = document.getElementById('activeRouteNameDisplay');
+  const metaEl = document.getElementById('activeRouteMetaDisplay');
+  
+  if (nameEl) nameEl.textContent = AppState.activeRouteName;
+  if (metaEl) {
+    let totalKm = 0;
+    for (let i = 0; i < stops.length - 1; i++) {
+      totalKm += calculateDistanceKm(stops[i].lat, stops[i].lng, stops[i+1].lat, stops[i+1].lng);
+    }
+    metaEl.textContent = `${stops.length} paradas • ~${totalKm.toFixed(1)} km`;
+  }
+  if (banner) banner.style.display = 'flex';
+
+  // Fecha modais para limpar a visão do usuário
+  closeSmartRouteModal();
+  closeRouteModal();
+  closeSavedRoutesModal();
+
+  // Habilita botões do itinerário
+  const googleBtn = document.getElementById('openGoogleMapsRouteBtn');
+  const focusBtn = document.getElementById('focusActiveRouteBtn');
+  if (googleBtn) googleBtn.disabled = false;
+  if (focusBtn) focusBtn.disabled = false;
+
+  // Atualiza lista lateral e marcadores (agora EXCLUSIVAMENTE os da rota)
+  updateUI();
+  drawRouteOnMap();
+
+  showToast(`🚀 Rota ativada: Mostrando apenas as ${stops.length} paradas no mapa!`);
+}
+
+function exitRouteMode() {
+  AppState.isRouteActive = false;
+  AppState.activeRouteName = '';
+  AppState.activeRouteId = null;
+
+  // Esconde o banner de rota ativa
+  const banner = document.getElementById('activeRouteBanner');
+  if (banner) banner.style.display = 'none';
+
+  // Remove traçado e marcadores da rota
+  if (AppState.routePolyline) {
+    AppState.map.removeLayer(AppState.routePolyline);
+    AppState.routePolyline = null;
+  }
+  if (AppState.routeMarkersGroup) {
+    AppState.routeMarkersGroup.clearLayers();
+  }
+
+  // Restaura todos os milhares de estabelecimentos no mapa
+  updateUI();
+
+  showToast('Modo Rota encerrado. Todos os estabelecimentos voltaram ao mapa.');
+}
+
+// =============================================================================
+// SISTEMA DE ROTAS SALVAS NO LOCALSTORAGE
+// =============================================================================
+const SAVED_ROUTES_STORAGE_KEY = 'citymap_saved_routes_v1';
+
+function getSavedRoutes() {
+  try {
+    const raw = localStorage.getItem(SAVED_ROUTES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.warn('Erro ao carregar rotas salvas:', e);
+    return [];
+  }
+}
+
+function saveRouteToStorage(routeObj) {
+  const routes = getSavedRoutes();
+  const existingIdx = routes.findIndex(r => r.id === routeObj.id);
+  if (existingIdx !== -1) {
+    routes[existingIdx] = routeObj;
+  } else {
+    routes.unshift(routeObj);
+  }
+  localStorage.setItem(SAVED_ROUTES_STORAGE_KEY, JSON.stringify(routes));
+  updateSavedRoutesBadge();
+}
+
+function deleteSavedRoute(routeId) {
+  if (!confirm('Deseja realmente excluir esta rota salva?')) return;
+  let routes = getSavedRoutes();
+  routes = routes.filter(r => r.id !== routeId);
+  localStorage.setItem(SAVED_ROUTES_STORAGE_KEY, JSON.stringify(routes));
+  updateSavedRoutesBadge();
+  renderSavedRoutesList();
+  showToast('Rota excluída com sucesso.');
+}
+
+function updateSavedRoutesBadge() {
+  const routes = getSavedRoutes();
+  const count = routes.length;
+  const b1 = document.getElementById('savedRoutesCountBadge');
+  const b2 = document.getElementById('savedRoutesBadge');
+  if (b1) b1.textContent = count;
+  if (b2) b2.textContent = count;
+}
+
+function openSavedRoutesModal() {
+  renderSavedRoutesList();
+  const modal = document.getElementById('savedRoutesModal');
+  if (modal) modal.classList.add('open');
+}
+
+function closeSavedRoutesModal() {
+  const modal = document.getElementById('savedRoutesModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function renderSavedRoutesList() {
+  const list = document.getElementById('savedRoutesList');
+  if (!list) return;
+
+  const routes = getSavedRoutes();
+  if (routes.length === 0) {
+    list.innerHTML = `
+      <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
+        <i class="ri-bookmark-line" style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem; color: #10b981;"></i>
+        <strong style="color: var(--text-primary); display: block; margin-bottom: 0.25rem;">Nenhuma rota salva ainda</strong>
+        <p style="font-size: 0.82rem;">Crie um roteiro no botão "Rota Inteligente" ou "Itinerário" e salve para acessar quando quiser.</p>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = routes.map(route => {
+    const dateFormatted = route.createdAt ? new Date(route.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    const stopsCount = route.stops ? route.stops.length : 0;
+    const distText = route.totalDistanceKm ? `~${route.totalDistanceKm.toFixed(1)} km` : '';
+
+    return `
+      <div class="saved-route-card" data-id="${route.id}">
+        <div class="saved-route-card-top">
+          <div class="saved-route-card-title">
+            <strong>${escapeHtml(route.name)}</strong>
+            <span>Criada em: ${dateFormatted}</span>
+          </div>
+          <div class="saved-route-badges">
+            <span class="saved-route-badge" style="background: rgba(16,185,129,0.15); color: #34d399; border-color: rgba(16,185,129,0.3); font-weight:700;"><i class="ri-map-pin-range-line"></i> ${stopsCount} paradas</span>
+            ${distText ? `<span class="saved-route-badge"><i class="ri-navigation-line"></i> ${distText}</span>` : ''}
+            ${route.region ? `<span class="saved-route-badge"><i class="ri-compass-line"></i> ${route.region.toUpperCase()}</span>` : ''}
+          </div>
+        </div>
+
+        <div class="saved-route-card-actions">
+          <button type="button" class="btn btn-sm btn-primary" onclick="loadAndActivateSavedRoute('${route.id}')" style="flex: 2; background: linear-gradient(135deg, #10b981, #059669);">
+            <i class="ri-play-fill"></i> Ativar Rota no Mapa
+          </button>
+          <button type="button" class="btn btn-sm btn-google-maps" onclick="openSavedRouteInGoogleMaps('${route.id}')" title="Navegar no app Google Maps">
+            <i class="ri-google-fill"></i> Navegar
+          </button>
+          <button type="button" class="btn btn-sm btn-secondary icon-only" onclick="deleteSavedRoute('${route.id}')" title="Excluir rota">
+            <i class="ri-delete-bin-line" style="color: #ef4444;"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.loadAndActivateSavedRoute = function(routeId) {
+  const routes = getSavedRoutes();
+  const route = routes.find(r => r.id === routeId);
+  if (!route || !route.stops || route.stops.length === 0) {
+    showToast('Não foi possível carregar a rota.');
+    return;
+  }
+  activateRouteMode(route.stops, route.name, route.id);
+};
+
+window.openSavedRouteInGoogleMaps = function(routeId) {
+  const routes = getSavedRoutes();
+  const route = routes.find(r => r.id === routeId);
+  if (!route || !route.stops || route.stops.length < 2) {
+    showToast('Rota precisa de pelo menos 2 paradas.');
+    return;
+  }
+  AppState.routeStops = route.stops;
+  openGoogleMapsRoute();
+};
 
 window.getPlaceRegion = getPlaceRegion;
 window.getPlaceNeighborhood = getPlaceNeighborhood;
 window.openSmartRouteModal = openSmartRouteModal;
 window.closeSmartRouteModal = closeSmartRouteModal;
 window.generateSmartRoute = generateSmartRoute;
+window.activateRouteMode = activateRouteMode;
+window.exitRouteMode = exitRouteMode;
+window.openSavedRoutesModal = openSavedRoutesModal;
+window.closeSavedRoutesModal = closeSavedRoutesModal;
+window.deleteSavedRoute = deleteSavedRoute;
 
 // --- EVENT LISTENERS GERAIS ---
 function setupEventListeners() {
@@ -2168,6 +2499,75 @@ function setupEventListeners() {
   if (confirmGenerateSmartRouteBtn) {
     confirmGenerateSmartRouteBtn.addEventListener('click', generateSmartRoute);
   }
+
+  // ==========================================
+  // EVENT LISTENERS: MODO ROTA ATIVA & ROTAS SALVAS
+  // ==========================================
+  const exitActiveRouteBtn = document.getElementById('exitActiveRouteBtn');
+  if (exitActiveRouteBtn) exitActiveRouteBtn.addEventListener('click', exitRouteMode);
+
+  const activeRouteGoogleMapsBtn = document.getElementById('activeRouteGoogleMapsBtn');
+  if (activeRouteGoogleMapsBtn) activeRouteGoogleMapsBtn.addEventListener('click', openGoogleMapsRoute);
+
+  const activeRouteManageBtn = document.getElementById('activeRouteManageBtn');
+  if (activeRouteManageBtn) activeRouteManageBtn.addEventListener('click', openRouteModal);
+
+  // Botões de Minhas Rotas Salvas
+  const openSavedRoutesBtn = document.getElementById('openSavedRoutesBtn');
+  if (openSavedRoutesBtn) openSavedRoutesBtn.addEventListener('click', openSavedRoutesModal);
+
+  const openSavedRoutesFromModalBtn = document.getElementById('openSavedRoutesFromModalBtn');
+  if (openSavedRoutesFromModalBtn) {
+    openSavedRoutesFromModalBtn.addEventListener('click', () => {
+      closeRouteModal();
+      openSavedRoutesModal();
+    });
+  }
+
+  const closeSavedRoutesModalBtn = document.getElementById('closeSavedRoutesModalBtn');
+  if (closeSavedRoutesModalBtn) closeSavedRoutesModalBtn.addEventListener('click', closeSavedRoutesModal);
+
+  // Ações do Itinerário Manual: Focar no Mapa e Salvar
+  const focusActiveRouteBtn = document.getElementById('focusActiveRouteBtn');
+  if (focusActiveRouteBtn) {
+    focusActiveRouteBtn.addEventListener('click', () => {
+      if (AppState.routeStops.length === 0) {
+        showToast('Adicione pelo menos 1 ponto na rota para focar.');
+        return;
+      }
+      activateRouteMode(AppState.routeStops, 'Itinerário Personalizado');
+    });
+  }
+
+  const saveManualRouteBtn = document.getElementById('saveManualRouteBtn');
+  if (saveManualRouteBtn) {
+    saveManualRouteBtn.addEventListener('click', () => {
+      if (AppState.routeStops.length < 2) {
+        showToast('Adicione pelo menos 2 paradas para salvar.');
+        return;
+      }
+      const name = prompt('Dê um nome para salvar esta rota:', 'Itinerário ' + new Date().toLocaleDateString('pt-BR'));
+      if (!name) return;
+
+      let totalKm = 0;
+      for (let i = 0; i < AppState.routeStops.length - 1; i++) {
+        totalKm += calculateDistanceKm(AppState.routeStops[i].lat, AppState.routeStops[i].lng, AppState.routeStops[i+1].lat, AppState.routeStops[i+1].lng);
+      }
+
+      saveRouteToStorage({
+        id: 'route_' + Date.now(),
+        name: name,
+        createdAt: new Date().toISOString(),
+        region: 'manual',
+        statusFilter: [],
+        stops: [...AppState.routeStops],
+        totalDistanceKm: totalKm
+      });
+      showToast('Rota salva com sucesso! Você pode acessá-la em "Minhas Rotas Salvas".');
+    });
+  }
+
+  updateSavedRoutesBadge();
 
   // Dropdown Multiselect de Categorias
   const catDropBtn = document.getElementById('categoryDropdownBtn');
