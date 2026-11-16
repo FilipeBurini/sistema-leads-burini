@@ -3726,3 +3726,472 @@ body {
   background: rgba(245, 158, 11, 0.2);
   transform: translateX(2px);
 }
+
+/* ==========================================
+   BOTÃO E MODAL: ROTA INTELIGENTE PAP
+   ========================================== */
+.btn-smart-route {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #fff !important;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.3);
+  transition: all 0.2s ease;
+  gap: 0.4rem;
+}
+
+.btn-smart-route:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-smart-route i {
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+/* Banner de atalho dentro do planejador de rotas manual */
+.smart-route-shortcut-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(30, 41, 59, 0.6));
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.smart-route-shortcut-banner .shortcut-text {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.smart-route-shortcut-banner .shortcut-text i {
+  font-size: 1.4rem;
+  color: #fbbf24;
+}
+
+.smart-route-shortcut-banner .shortcut-text div {
+  display: flex;
+  flex-direction: column;
+}
+
+.smart-route-shortcut-banner .shortcut-text strong {
+  font-size: 0.85rem;
+  color: #fbbf24;
+}
+
+.smart-route-shortcut-banner .shortcut-text span {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* Modal Card do Assistente Inteligente */
+.smart-route-modal-card {
+  max-width: 660px;
+  width: 95%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(245, 158, 11, 0.15);
+}
+
+.smart-modal-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.3rem;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+  flex-shrink: 0;
+}
+
+.smart-modal-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.smart-route-modal-body {
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Passos do Modal */
+.smart-step-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.smart-step-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.smart-step-title .step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: #f59e0b;
+  color: #000;
+  font-weight: 800;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.smart-step-title h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Grid de Regiões */
+.smart-region-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.5rem;
+}
+
+.smart-region-card {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  color: var(--text-primary);
+}
+
+.smart-region-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.smart-region-card.active {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.12));
+  border-color: #f59e0b;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
+}
+
+.smart-region-card i {
+  font-size: 1.25rem;
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.smart-region-card .region-card-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.smart-region-card strong {
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.smart-region-card .region-count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.smart-region-card.active .region-count {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+/* Seletor de Bairro */
+.smart-bairro-selector-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px dashed rgba(245, 158, 11, 0.35);
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+}
+
+.smart-bairro-selector-row label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #fbbf24;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.smart-bairro-selector-row select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.75rem;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+/* Presets de Status */
+.smart-status-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.smart-preset-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.smart-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.smart-preset-btn.highlight-rejected {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  font-weight: 700;
+}
+
+.smart-preset-btn.highlight-rejected:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* Chips de Status (com checkboxes) */
+.smart-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.smart-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.smart-status-chip input {
+  cursor: pointer;
+}
+
+.smart-status-chip .chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.smart-status-chip.chip-rejected .chip-dot { background: #ef4444; }
+.smart-status-chip.chip-lead .chip-dot { background: #94a3b8; }
+.smart-status-chip.chip-negotiating .chip-dot { background: #f59e0b; }
+.smart-status-chip.chip-followup .chip-dot { background: #a855f7; }
+.smart-status-chip.chip-closed .chip-dot { background: #10b981; }
+
+.smart-status-chip:has(input:checked) {
+  border-color: var(--color-primary);
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.smart-status-chip.chip-rejected:has(input:checked) {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  font-weight: 600;
+}
+
+/* Seletor de Quantidade de Leads */
+.smart-limit-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.smart-limit-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.smart-limit-chip {
+  padding: 0.4rem 0.8rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.smart-limit-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.smart-limit-chip.active {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #000;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+}
+
+.smart-limit-custom {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.smart-limit-custom label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.smart-limit-custom input {
+  width: 65px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  color: var(--text-primary);
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+/* Modo de Transporte */
+.smart-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  font-size: 0.82rem;
+}
+
+.smart-transport-mode {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.smart-transport-mode span {
+  color: var(--text-muted);
+}
+
+.smart-transport-mode .transport-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+/* Preview Box */
+.smart-route-preview-box {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(15, 23, 42, 0.6));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+}
+
+.smart-route-preview-box .preview-icon {
+  font-size: 1.6rem;
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.smart-route-preview-box .preview-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.smart-route-preview-box strong {
+  font-size: 0.92rem;
+  color: #34d399;
+}
+
+.smart-route-preview-box span {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+/* Ações Finais */
+.smart-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.btn-smart-generate {
+  flex: 2;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+  transition: all 0.2s ease;
+}
+
+.btn-smart-generate:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.5);
+  transform: translateY(-1px);
+}
+

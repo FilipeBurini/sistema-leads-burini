@@ -1576,7 +1576,8 @@ function openGoogleMapsRoute() {
   }
 
   // URL universal da API de Rotas do Google Maps
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}&travelmode=driving`;
+  const travelMode = AppState.routeTravelMode || 'driving';
+  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}&travelmode=${travelMode}`;
   
   window.open(googleMapsUrl, '_blank');
   showToast('Abrindo rota completa no Google Maps!');
@@ -1679,6 +1680,289 @@ function fallbackStraightPolyline() {
 window.moveStop = moveStop;
 window.removeStopFromRoute = removeStopFromRoute;
 
+// =============================================================================
+// INTELIGÊNCIA GEOGRÁFICA: REGIONALIZAÇÃO, CENTRO & BAIRROS
+// =============================================================================
+const CITY_CENTER_COORDS = [-20.5386, -47.4009]; // Marco Zero de Franca/SP (Praça N. Sra. da Conceição / Centro)
+
+function getPlaceNeighborhood(place) {
+  if (!place) return '';
+  if (place.neighborhood && typeof place.neighborhood === 'string' && place.neighborhood.trim()) {
+    return place.neighborhood.trim();
+  }
+  if (place.bairro && typeof place.bairro === 'string' && place.bairro.trim()) {
+    return place.bairro.trim();
+  }
+  if (place.address && typeof place.address === 'string') {
+    const m = place.address.match(/-\s*([^,-]+),\s*(?:Franca|\d{5}|SP)/i);
+    if (m && m[1]) return m[1].trim();
+  }
+  return '';
+}
+
+function getPlaceRegion(place) {
+  if (!place || typeof place.lat !== 'number' || typeof place.lng !== 'number') {
+    return 'centro';
+  }
+  const b = getPlaceNeighborhood(place).toLowerCase();
+  const distToCenter = calculateDistanceKm(CITY_CENTER_COORDS[0], CITY_CENTER_COORDS[1], place.lat, place.lng);
+  
+  // Se o bairro é explicitamente Centro ou está dentro do raio central de ~1.6km
+  if (b.includes('centro') || distToCenter <= 1.6) {
+    return 'centro';
+  }
+  
+  const dLat = place.lat - CITY_CENTER_COORDS[0]; // Hemisfério sul: lat maior = mais ao Norte
+  const dLng = place.lng - CITY_CENTER_COORDS[1]; // lng maior = mais a Leste
+  
+  if (dLat > 0.015 && Math.abs(dLng) < 0.04) {
+    return 'norte';
+  }
+  if (dLat < -0.015 && Math.abs(dLng) < 0.04) {
+    return 'sul';
+  }
+  if (dLng > 0.015) {
+    return 'leste';
+  }
+  if (dLng < -0.015) {
+    return 'oeste';
+  }
+  
+  if (dLat > 0) return 'norte';
+  return 'sul';
+}
+
+function getAllAvailableNeighborhoods() {
+  const map = new Map();
+  AppState.places.forEach(p => {
+    const b = getPlaceNeighborhood(p);
+    if (b) {
+      const normalized = b.trim();
+      const cap = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+      map.set(cap, (map.get(cap) || 0) + 1);
+    }
+  });
+  return Array.from(map.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+}
+
+function getRegionCounts() {
+  const counts = { centro: 0, norte: 0, sul: 0, leste: 0, oeste: 0 };
+  AppState.places.forEach(p => {
+    const r = getPlaceRegion(p);
+    if (counts[r] !== undefined) counts[r]++;
+  });
+  return counts;
+}
+
+// =============================================================================
+// ASSISTENTE DE ROTA INTELIGENTE PAP (PROSPEÇÃO DIRIGIDA)
+// =============================================================================
+function openSmartRouteModal() {
+  // 1. Atualiza contadores de estabelecimentos por região
+  const counts = getRegionCounts();
+  const elCentro = document.getElementById('countRegionCentro');
+  const elNorte = document.getElementById('countRegionNorte');
+  const elSul = document.getElementById('countRegionSul');
+  const elLeste = document.getElementById('countRegionLeste');
+  const elOeste = document.getElementById('countRegionOeste');
+  
+  if (elCentro) elCentro.textContent = `${counts.centro} leads`;
+  if (elNorte) elNorte.textContent = `${counts.norte} leads`;
+  if (elSul) elSul.textContent = `${counts.sul} leads`;
+  if (elLeste) elLeste.textContent = `${counts.leste} leads`;
+  if (elOeste) elOeste.textContent = `${counts.oeste} leads`;
+
+  // 2. Popula o seletor de bairros mapeados
+  const select = document.getElementById('smartBairroSelect');
+  if (select) {
+    const bairros = getAllAvailableNeighborhoods();
+    select.innerHTML = '<option value="">-- Selecione um bairro mapeado --</option>' +
+      bairros.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)} (${b.count} leads)</option>`).join('');
+  }
+
+  // 3. Atualiza prévia e exibe o modal
+  updateSmartRoutePreview();
+  const modal = document.getElementById('smartRouteModal');
+  if (modal) modal.classList.add('open');
+}
+
+function closeSmartRouteModal() {
+  const modal = document.getElementById('smartRouteModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function updateSmartRoutePreview() {
+  const activeRegionCard = document.querySelector('.smart-region-card.active');
+  const region = activeRegionCard ? activeRegionCard.dataset.region : 'centro';
+  const selectedBairro = (document.getElementById('smartBairroSelect') || {}).value || '';
+  
+  const checkedBoxes = Array.from(document.querySelectorAll('input[name="smartStatus"]:checked')).map(cb => cb.value);
+  const limitInput = document.getElementById('smartRouteLimitInput');
+  const limit = limitInput ? parseInt(limitInput.value, 10) || 10 : 10;
+  
+  const candidates = AppState.places.filter(p => {
+    if (typeof p.lat !== 'number' || typeof p.lng !== 'number') return false;
+    
+    // Filtro por status CRM
+    const stage = p.crmStage || (p.visited ? 'negotiating' : 'lead');
+    let matchStatus = false;
+    if (checkedBoxes.includes(stage)) matchStatus = true;
+    if (checkedBoxes.includes('follow_up') && p.followUpDate) matchStatus = true;
+    if (!matchStatus) return false;
+    
+    // Filtro por região ou bairro
+    if (region === 'bairro') {
+      if (!selectedBairro) return true;
+      const b = getPlaceNeighborhood(p).toLowerCase();
+      return b.includes(selectedBairro.toLowerCase()) || selectedBairro.toLowerCase().includes(b);
+    } else if (region === 'gps') {
+      if (AppState.userCoordinates) {
+        const d = calculateDistanceKm(AppState.userCoordinates[0], AppState.userCoordinates[1], p.lat, p.lng);
+        return d <= 5.0;
+      }
+      return true;
+    } else {
+      return getPlaceRegion(p) === region;
+    }
+  });
+
+  const countEl = document.getElementById('smartPreviewCount');
+  const tipEl = document.getElementById('smartPreviewTip');
+  
+  if (countEl) {
+    if (candidates.length === 0) {
+      countEl.innerHTML = `<span style="color: #f87171;"><i class="ri-alert-line"></i> Nenhum estabelecimento encontrado com este filtro</span>`;
+      if (tipEl) {
+        tipEl.textContent = 'Não encontramos leads com esse status nesta região. Dica: selecione outro status (ex: Novos Leads ou Recusados) ou altere a região.';
+      }
+    } else {
+      const targetCount = Math.min(candidates.length, limit);
+      countEl.innerHTML = `<span style="color: #34d399;"><i class="ri-checkbox-circle-line"></i> ${candidates.length} leads compatíveis encontrados</span> (Circuito gerará ${targetCount} paradas)`;
+      if (tipEl) {
+        const labels = checkedBoxes.map(s => {
+          if (s === 'rejected') return '🔴 Recusados';
+          if (s === 'lead') return '⚪ Novos Leads';
+          if (s === 'negotiating') return '🟡 Em Negociação';
+          if (s === 'follow_up') return '📅 Retornos Agendados';
+          if (s === 'closed') return '🟢 Clientes Fechados';
+          return s;
+        }).join(', ');
+        tipEl.textContent = `Foco ativo: ${labels || 'Nenhum'}. As paradas serão otimizadas pelo menor percurso a pé ou de veículo.`;
+      }
+    }
+  }
+}
+
+function generateSmartRoute() {
+  const activeRegionCard = document.querySelector('.smart-region-card.active');
+  const region = activeRegionCard ? activeRegionCard.dataset.region : 'centro';
+  const selectedBairro = (document.getElementById('smartBairroSelect') || {}).value || '';
+  
+  const checkedBoxes = Array.from(document.querySelectorAll('input[name="smartStatus"]:checked')).map(cb => cb.value);
+  if (checkedBoxes.length === 0) {
+    showToast('Por favor, marque pelo menos um status de lead para visitar.');
+    return;
+  }
+  
+  const limitInput = document.getElementById('smartRouteLimitInput');
+  const limit = Math.max(2, Math.min(50, limitInput ? parseInt(limitInput.value, 10) || 10 : 10));
+  const transportMode = (document.querySelector('input[name="smartTransportMode"]:checked') || {}).value || 'driving';
+  AppState.routeTravelMode = transportMode;
+
+  let originPoint = CITY_CENTER_COORDS;
+  if (region === 'gps' && AppState.userCoordinates) {
+    originPoint = AppState.userCoordinates;
+  } else if (region === 'norte') {
+    originPoint = [-20.5050, -47.4100];
+  } else if (region === 'sul') {
+    originPoint = [-20.5650, -47.3850];
+  } else if (region === 'leste') {
+    originPoint = [-20.5450, -47.3750];
+  } else if (region === 'oeste') {
+    originPoint = [-20.5400, -47.4250];
+  }
+
+  let candidates = AppState.places.filter(p => {
+    if (typeof p.lat !== 'number' || typeof p.lng !== 'number') return false;
+    
+    const stage = p.crmStage || (p.visited ? 'negotiating' : 'lead');
+    let matchStatus = false;
+    if (checkedBoxes.includes(stage)) matchStatus = true;
+    if (checkedBoxes.includes('follow_up') && p.followUpDate) matchStatus = true;
+    if (!matchStatus) return false;
+    
+    if (region === 'bairro') {
+      if (!selectedBairro) return true;
+      const b = getPlaceNeighborhood(p).toLowerCase();
+      return b.includes(selectedBairro.toLowerCase()) || selectedBairro.toLowerCase().includes(b);
+    } else if (region === 'gps') {
+      if (AppState.userCoordinates) {
+        const d = calculateDistanceKm(AppState.userCoordinates[0], AppState.userCoordinates[1], p.lat, p.lng);
+        return d <= 6.0;
+      }
+      return true;
+    } else {
+      return getPlaceRegion(p) === region;
+    }
+  });
+
+  if (candidates.length === 0) {
+    showToast('Nenhum estabelecimento encontrado com esses critérios. Tente selecionar outro status ou região.');
+    return;
+  }
+
+  // 1. Calcula a distância de cada candidato até a origem de partida
+  candidates.forEach(p => {
+    p._distToOrigin = calculateDistanceKm(originPoint[0], originPoint[1], p.lat, p.lng);
+  });
+
+  // 2. Ordena pelos mais próximos da partida e pega até o limite
+  candidates.sort((a, b) => a._distToOrigin - b._distToOrigin);
+  const selectedPool = candidates.slice(0, limit);
+
+  // 3. Aplica otimização TSP (Vizinho Mais Próximo)
+  const optimizedRoute = [];
+  const unvisited = [...selectedPool];
+  let curLat = originPoint[0];
+  let curLng = originPoint[1];
+
+  while (unvisited.length > 0) {
+    let nearestIdx = 0;
+    let shortestDist = Infinity;
+    for (let i = 0; i < unvisited.length; i++) {
+      const d = calculateDistanceKm(curLat, curLng, unvisited[i].lat, unvisited[i].lng);
+      if (d < shortestDist) {
+        shortestDist = d;
+        nearestIdx = i;
+      }
+    }
+    const nextStop = unvisited.splice(nearestIdx, 1)[0];
+    optimizedRoute.push(nextStop);
+    curLat = nextStop.lat;
+    curLng = nextStop.lng;
+  }
+
+  // 4. Grava em AppState.routeStops
+  AppState.routeStops = optimizedRoute;
+
+  // 5. Fecha assistente inteligente, atualiza paradas e traça no mapa
+  closeSmartRouteModal();
+  populateRoutePlaceSelector();
+  renderRouteStopsList();
+  drawRouteOnMap();
+  openRouteModal();
+
+  showToast(`⚡ Rota Inteligente gerada com sucesso! ${optimizedRoute.length} estabelecimentos no melhor circuito.`);
+}
+
+window.getPlaceRegion = getPlaceRegion;
+window.getPlaceNeighborhood = getPlaceNeighborhood;
+window.openSmartRouteModal = openSmartRouteModal;
+window.closeSmartRouteModal = closeSmartRouteModal;
+window.generateSmartRoute = generateSmartRoute;
+
 // --- EVENT LISTENERS GERAIS ---
 function setupEventListeners() {
   // Toggle Sidebar Desktop (Recolher)
@@ -1764,6 +2048,126 @@ function setupEventListeners() {
 
   // Botão Otimizar Rota
   document.getElementById('optimizeRouteBtn').addEventListener('click', optimizeRouteOrder);
+
+  // ==========================================
+  // EVENT LISTENERS: ROTA INTELIGENTE PAP
+  // ==========================================
+  const openSmartRouteBtn = document.getElementById('openSmartRouteBtn');
+  if (openSmartRouteBtn) openSmartRouteBtn.addEventListener('click', openSmartRouteModal);
+
+  const openSmartRouteFromPlannerBtn = document.getElementById('openSmartRouteFromPlannerBtn');
+  if (openSmartRouteFromPlannerBtn) {
+    openSmartRouteFromPlannerBtn.addEventListener('click', () => {
+      closeRouteModal();
+      openSmartRouteModal();
+    });
+  }
+
+  const closeSmartRouteModalBtn = document.getElementById('closeSmartRouteModalBtn');
+  if (closeSmartRouteModalBtn) closeSmartRouteModalBtn.addEventListener('click', closeSmartRouteModal);
+
+  const cancelSmartRouteBtn = document.getElementById('cancelSmartRouteBtn');
+  if (cancelSmartRouteBtn) cancelSmartRouteBtn.addEventListener('click', closeSmartRouteModal);
+
+  // Seleção de Regiões
+  const regionCards = document.querySelectorAll('.smart-region-card');
+  regionCards.forEach(card => {
+    card.addEventListener('click', () => {
+      regionCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      const bRow = document.getElementById('smartBairroSelectorRow');
+      if (bRow) {
+        bRow.style.display = card.dataset.region === 'bairro' ? 'flex' : 'none';
+      }
+      updateSmartRoutePreview();
+    });
+  });
+
+  const smartBairroSelect = document.getElementById('smartBairroSelect');
+  if (smartBairroSelect) smartBairroSelect.addEventListener('change', updateSmartRoutePreview);
+
+  // Presets Rápidos de Status
+  const presetOnlyRejectedBtn = document.getElementById('presetOnlyRejectedBtn');
+  if (presetOnlyRejectedBtn) {
+    presetOnlyRejectedBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="smartStatus"]').forEach(cb => {
+        cb.checked = (cb.value === 'rejected');
+      });
+      updateSmartRoutePreview();
+      showToast('Foco: Apenas Recusados (Reversão de Objeções)');
+    });
+  }
+
+  const presetOnlyNewBtn = document.getElementById('presetOnlyNewBtn');
+  if (presetOnlyNewBtn) {
+    presetOnlyNewBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="smartStatus"]').forEach(cb => {
+        cb.checked = (cb.value === 'lead');
+      });
+      updateSmartRoutePreview();
+    });
+  }
+
+  const presetNegotiatingBtn = document.getElementById('presetNegotiatingBtn');
+  if (presetNegotiatingBtn) {
+    presetNegotiatingBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="smartStatus"]').forEach(cb => {
+        cb.checked = (cb.value === 'negotiating');
+      });
+      updateSmartRoutePreview();
+    });
+  }
+
+  const presetAllStatusBtn = document.getElementById('presetAllStatusBtn');
+  if (presetAllStatusBtn) {
+    presetAllStatusBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="smartStatus"]').forEach(cb => cb.checked = true);
+      updateSmartRoutePreview();
+    });
+  }
+
+  // Checkboxes de Status
+  document.querySelectorAll('input[name="smartStatus"]').forEach(cb => {
+    cb.addEventListener('change', updateSmartRoutePreview);
+  });
+
+  // Chips de Quantidade de Visitas
+  const limitChips = document.querySelectorAll('.smart-limit-chip');
+  const limitInput = document.getElementById('smartRouteLimitInput');
+  limitChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      limitChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      if (limitInput) limitInput.value = chip.dataset.limit;
+      updateSmartRoutePreview();
+    });
+  });
+
+  if (limitInput) {
+    limitInput.addEventListener('input', () => {
+      limitChips.forEach(c => {
+        if (c.dataset.limit === limitInput.value) {
+          c.classList.add('active');
+        } else {
+          c.classList.remove('active');
+        }
+      });
+      updateSmartRoutePreview();
+    });
+  }
+
+  // Modo de Locomoção
+  document.querySelectorAll('input[name="smartTransportMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      AppState.routeTravelMode = e.target.value;
+    });
+  });
+
+  // Botão Confirmar e Gerar
+  const confirmGenerateSmartRouteBtn = document.getElementById('confirmGenerateSmartRouteBtn');
+  if (confirmGenerateSmartRouteBtn) {
+    confirmGenerateSmartRouteBtn.addEventListener('click', generateSmartRoute);
+  }
 
   // Dropdown Multiselect de Categorias
   const catDropBtn = document.getElementById('categoryDropdownBtn');

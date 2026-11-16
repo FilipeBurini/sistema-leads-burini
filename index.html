@@ -482,13 +482,17 @@
 
       <!-- AÇÕES RÁPIDAS -->
       <div class="quick-actions">
-        <button id="openAddModalBtn" class="btn btn-primary">
-          <i class="ri-add-circle-fill"></i>
-          <span>Novo Local</span>
+        <button id="openSmartRouteBtn" class="btn btn-smart-route" title="Gerar Rota Inteligente por Região, Status e Quantidade de Leads">
+          <i class="ri-flashlight-fill"></i>
+          <span>Rota Inteligente</span>
         </button>
-        <button id="openRoutePlannerBtn" class="btn btn-route-planner" title="Criar Rota com Múltiplos Pontos">
+        <button id="openAddModalBtn" class="btn btn-primary" title="Cadastrar Novo Local">
+          <i class="ri-add-circle-fill"></i>
+          <span>Novo</span>
+        </button>
+        <button id="openRoutePlannerBtn" class="btn btn-route-planner" title="Criar Rota Manual com Múltiplos Pontos">
           <i class="ri-route-fill"></i>
-          <span>Criar Rota</span>
+          <span>Itinerário</span>
         </button>
         <div class="action-dropdown">
           <button id="dataOptionsBtn" class="btn btn-secondary icon-only" title="Opções de Dados (Backup/Importar)">
@@ -763,6 +767,20 @@
       </div>
 
       <div class="route-modal-body">
+        <!-- ATALHO PARA O ASSISTENTE INTELIGENTE -->
+        <div class="smart-route-shortcut-banner">
+          <div class="shortcut-text">
+            <i class="ri-flashlight-line"></i>
+            <div>
+              <strong>Deseja gerar automaticamente?</strong>
+              <span>Defina a região, status e quantidade em 1 clique.</span>
+            </div>
+          </div>
+          <button type="button" id="openSmartRouteFromPlannerBtn" class="btn btn-sm btn-smart-route">
+            <i class="ri-magic-line"></i> Abrir Rota Inteligente
+          </button>
+        </div>
+
         <p class="route-intro">Selecione e ordene os locais mapeados para traçar um roteiro completo no mapa e navegar diretamente pelo Google Maps.</p>
 
         <!-- SELETOR PARA ADICIONAR PARADA -->
@@ -807,6 +825,205 @@
           </button>
           <button id="clearRouteBtn" class="btn btn-secondary" title="Limpar todos os pontos">
             <i class="ri-delete-bin-line"></i> Limpar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: GERADOR DE ROTA INTELIGENTE PAP -->
+  <div class="modal-overlay" id="smartRouteModal">
+    <div class="modal-card smart-route-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="smart-modal-badge">
+            <i class="ri-flashlight-fill"></i>
+          </div>
+          <div>
+            <h3>Gerador de Rota Inteligente</h3>
+            <span class="smart-modal-subtitle">Planeje seu circuito PAP por região, status e meta de visitas</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeSmartRouteModalBtn">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <div class="smart-route-modal-body">
+        <!-- PASSO 1: ONDE QUER ANDAR -->
+        <div class="smart-step-section">
+          <div class="smart-step-title">
+            <span class="step-num">1</span>
+            <h4>Por onde você quer andar?</h4>
+          </div>
+          <div class="smart-region-grid" id="smartRegionGrid">
+            <button type="button" class="smart-region-card active" data-region="centro">
+              <i class="ri-government-line"></i>
+              <div class="region-card-info">
+                <strong>Centro da Cidade</strong>
+                <span class="region-count" id="countRegionCentro">Calculando...</span>
+              </div>
+            </button>
+            <button type="button" class="smart-region-card" data-region="gps">
+              <i class="ri-crosshair-2-line"></i>
+              <div class="region-card-info">
+                <strong>Perto de Mim (GPS)</strong>
+                <span class="region-count" id="countRegionGps">Localização Atual</span>
+              </div>
+            </button>
+            <button type="button" class="smart-region-card" data-region="norte">
+              <i class="ri-compass-3-line"></i>
+              <div class="region-card-info">
+                <strong>Zona Norte</strong>
+                <span class="region-count" id="countRegionNorte">Calculando...</span>
+              </div>
+            </button>
+            <button type="button" class="smart-region-card" data-region="sul">
+              <i class="ri-compass-4-line"></i>
+              <div class="region-card-info">
+                <strong>Zona Sul</strong>
+                <span class="region-count" id="countRegionSul">Calculando...</span>
+              </div>
+            </button>
+            <button type="button" class="smart-region-card" data-region="leste">
+              <i class="ri-compass-line"></i>
+              <div class="region-card-info">
+                <strong>Zona Leste</strong>
+                <span class="region-count" id="countRegionLeste">Calculando...</span>
+              </div>
+            </button>
+            <button type="button" class="smart-region-card" data-region="oeste">
+              <i class="ri-compass-2-line"></i>
+              <div class="region-card-info">
+                <strong>Zona Oeste</strong>
+                <span class="region-count" id="countRegionOeste">Calculando...</span>
+              </div>
+            </button>
+            <button type="button" class="smart-region-card" data-region="bairro">
+              <i class="ri-community-line"></i>
+              <div class="region-card-info">
+                <strong>Bairro Específico</strong>
+                <span class="region-count">Escolher da lista</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- SELETOR DE BAIRRO CONDICIONAL -->
+          <div class="smart-bairro-selector-row" id="smartBairroSelectorRow" style="display: none;">
+            <label for="smartBairroSelect"><i class="ri-map-pin-2-line"></i> Selecione o Bairro:</label>
+            <select id="smartBairroSelect">
+              <option value="">-- Carregando bairros disponíveis... --</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- PASSO 2: QUAIS STATUS QUER VISITAR -->
+        <div class="smart-step-section">
+          <div class="smart-step-title">
+            <span class="step-num">2</span>
+            <h4>Quais status de leads quer visitar?</h4>
+          </div>
+
+          <!-- PRESETS RÁPIDOS DE STATUS -->
+          <div class="smart-status-presets">
+            <button type="button" class="smart-preset-btn highlight-rejected" id="presetOnlyRejectedBtn">
+              <i class="ri-restart-line"></i> 🔴 Apenas Recusados (Reconversão)
+            </button>
+            <button type="button" class="smart-preset-btn" id="presetOnlyNewBtn">
+              <i class="ri-checkbox-blank-circle-line"></i> ⚪ Apenas Novos (A Visitar)
+            </button>
+            <button type="button" class="smart-preset-btn" id="presetNegotiatingBtn">
+              <i class="ri-time-line"></i> 🟡 Em Negociação
+            </button>
+            <button type="button" class="smart-preset-btn" id="presetAllStatusBtn">
+              <i class="ri-apps-line"></i> 🔀 Todos os Status
+            </button>
+          </div>
+
+          <!-- CHIPS / CHECKBOXES DE STATUS -->
+          <div class="smart-status-chips">
+            <label class="smart-status-chip chip-rejected">
+              <input type="checkbox" name="smartStatus" value="rejected">
+              <span class="chip-dot"></span>
+              <span class="chip-label">🔴 Recusado (Tentar Converter)</span>
+            </label>
+            <label class="smart-status-chip chip-lead">
+              <input type="checkbox" name="smartStatus" value="lead" checked>
+              <span class="chip-dot"></span>
+              <span class="chip-label">⚪ A Visitar (Novos Leads)</span>
+            </label>
+            <label class="smart-status-chip chip-negotiating">
+              <input type="checkbox" name="smartStatus" value="negotiating">
+              <span class="chip-dot"></span>
+              <span class="chip-label">🟡 Em Negociação</span>
+            </label>
+            <label class="smart-status-chip chip-followup">
+              <input type="checkbox" name="smartStatus" value="follow_up">
+              <span class="chip-dot"></span>
+              <span class="chip-label">📅 Retornos Agendados</span>
+            </label>
+            <label class="smart-status-chip chip-closed">
+              <input type="checkbox" name="smartStatus" value="closed">
+              <span class="chip-dot"></span>
+              <span class="chip-label">🟢 Fechados / Clientes</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- PASSO 3: QUANTOS LEADS E MODO -->
+        <div class="smart-step-section">
+          <div class="smart-step-title">
+            <span class="step-num">3</span>
+            <h4>Quantos estabelecimentos deseja visitar?</h4>
+          </div>
+          <div class="smart-limit-wrapper">
+            <div class="smart-limit-chips" id="smartLimitChips">
+              <button type="button" class="smart-limit-chip" data-limit="5">5 leads</button>
+              <button type="button" class="smart-limit-chip active" data-limit="10">10 leads (Ideal)</button>
+              <button type="button" class="smart-limit-chip" data-limit="15">15 leads</button>
+              <button type="button" class="smart-limit-chip" data-limit="20">20 leads</button>
+              <button type="button" class="smart-limit-chip" data-limit="30">30 leads</button>
+            </div>
+            <div class="smart-limit-custom">
+              <label for="smartRouteLimitInput">Quantidade:</label>
+              <input type="number" id="smartRouteLimitInput" min="2" max="50" value="10">
+            </div>
+          </div>
+        </div>
+
+        <!-- OPÇÕES DE TRANSPORTE & OTIMIZAÇÃO -->
+        <div class="smart-options-row">
+          <div class="smart-transport-mode">
+            <span>Locomoção:</span>
+            <label class="transport-label">
+              <input type="radio" name="smartTransportMode" value="driving" checked>
+              <i class="ri-car-line"></i> Carro / Moto
+            </label>
+            <label class="transport-label">
+              <input type="radio" name="smartTransportMode" value="walking">
+              <i class="ri-walk-line"></i> A Pé (Circuito Curto)
+            </label>
+          </div>
+        </div>
+
+        <!-- RESUMO EM TEMPO REAL -->
+        <div class="smart-route-preview-box" id="smartRoutePreviewBox">
+          <div class="preview-icon">
+            <i class="ri-route-line"></i>
+          </div>
+          <div class="preview-text">
+            <strong id="smartPreviewCount">Calculando estabelecimentos...</strong>
+            <span id="smartPreviewTip">Os estabelecimentos mais próximos serão selecionados e organizados no menor trajeto.</span>
+          </div>
+        </div>
+
+        <!-- AÇÕES FINAIS -->
+        <div class="smart-modal-actions">
+          <button type="button" id="confirmGenerateSmartRouteBtn" class="btn btn-smart-generate">
+            <i class="ri-flashlight-fill"></i> Gerar e Traçar Rota Otimizada
+          </button>
+          <button type="button" id="cancelSmartRouteBtn" class="btn btn-secondary">
+            Cancelar
           </button>
         </div>
       </div>
