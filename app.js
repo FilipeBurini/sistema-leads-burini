@@ -169,25 +169,68 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (e) {}
 
-  initMap();
-  await loadInitialPlaces();
-  await loadCnpjLeadsIntoPlaces();
-  setupEventListeners();
-  initCnpjExplorerModal();
-  setupHorizontalScrollHelpers();
-  setupCloudSyncIntegration();
-  syncCommercialSegmentCategories();
+  // 2. Inicializar Mapa
+  try {
+    initMap();
+  } catch (e) {
+    console.error('Erro ao inicializar mapa:', e);
+  }
 
-  // 2. Sempre com a localização ativada (rastreamento contínuo em tempo real iniciado automaticamente)
-  startLiveLocationTracking(true);
+  // 3. Inicializar Autenticação e Nuvem com prioridade máxima (detecta login imediato)
+  try {
+    setupCloudSyncIntegration();
+  } catch (e) {
+    console.error('Erro ao inicializar integração com a nuvem:', e);
+  }
 
-  updateUI();
-  updateRadiusCircleOnMap(false);
+  // 4. Registrar Event Listeners da interface
+  try {
+    setupEventListeners();
+  } catch (e) {
+    console.error('Erro ao inicializar event listeners:', e);
+  }
+
+  // 5. Carregar locais base e CNPJs
+  try {
+    await loadInitialPlaces();
+  } catch (e) {
+    console.error('Erro ao carregar locais padrão:', e);
+  }
+
+  try {
+    await loadCnpjLeadsIntoPlaces();
+  } catch (e) {
+    console.error('Erro ao carregar CNPJs:', e);
+  }
+
+  try {
+    initCnpjExplorerModal();
+  } catch (e) {}
+
+  try {
+    setupHorizontalScrollHelpers();
+  } catch (e) {}
+
+  try {
+    syncCommercialSegmentCategories();
+  } catch (e) {}
+
+  // 6. Rastreamento contínuo em tempo real (GPS)
+  try {
+    startLiveLocationTracking(true);
+  } catch (e) {}
+
+  try {
+    updateUI();
+    updateRadiusCircleOnMap(false);
+  } catch (e) {}
 
   // Atualização periódica do status de funcionamento a cada 60 segundos
   setInterval(() => {
-    renderMapMarkers();
-    renderPlacesList();
+    try {
+      renderMapMarkers();
+      renderPlacesList();
+    } catch (e) {}
   }, 60000);
 });
 
@@ -2364,18 +2407,25 @@ function setupEventListeners() {
     const sel = document.getElementById('routePlaceSelector');
     addStopToRoute(sel.value);
   });
-  document.getElementById('openGoogleMapsRouteBtn').addEventListener('click', openGoogleMapsRoute);
-  document.getElementById('drawRouteOnMapBtn').addEventListener('click', drawRouteOnMap);
-  document.getElementById('clearRouteBtn').addEventListener('click', () => {
-    AppState.routeStops = [];
-    if (AppState.routePolyline) {
-      AppState.map.removeLayer(AppState.routePolyline);
-      AppState.routePolyline = null;
-    }
-    populateRoutePlaceSelector();
-    renderRouteStopsList();
-    showToast('Rota limpa com sucesso.');
-  });
+  const openGoogleMapsBtn = document.getElementById('openGoogleMapsRouteBtn');
+  if (openGoogleMapsBtn) openGoogleMapsBtn.addEventListener('click', openGoogleMapsRoute);
+
+  const drawRouteOnMapBtn = document.getElementById('drawRouteOnMapBtn');
+  if (drawRouteOnMapBtn) drawRouteOnMapBtn.addEventListener('click', drawRouteOnMap);
+
+  const clearRouteBtn = document.getElementById('clearRouteBtn');
+  if (clearRouteBtn) {
+    clearRouteBtn.addEventListener('click', () => {
+      AppState.routeStops = [];
+      if (AppState.routePolyline) {
+        AppState.map.removeLayer(AppState.routePolyline);
+        AppState.routePolyline = null;
+      }
+      populateRoutePlaceSelector();
+      renderRouteStopsList();
+      showToast('Rota limpa com sucesso.');
+    });
+  }
 
   // Botão Otimizar Rota
   document.getElementById('optimizeRouteBtn').addEventListener('click', optimizeRouteOrder);

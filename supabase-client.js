@@ -28,6 +28,19 @@ const CloudSync = {
         });
         this.isConfigured = true;
 
+        // Tenta recuperar sessão existente em cache do localStorage de forma síncrona
+        try {
+          const projectRef = url.split('//')[1]?.split('.')[0];
+          const cachedSessionStr = (projectRef ? localStorage.getItem(`sb-${projectRef}-auth-token`) : null) || 
+                                   localStorage.getItem(`${url}-auth-token`);
+          if (cachedSessionStr) {
+            const cachedSession = JSON.parse(cachedSessionStr);
+            if (cachedSession?.user) {
+              this.currentUser = cachedSession.user;
+            }
+          }
+        } catch (e) {}
+
         // Ouvir mudanças de autenticação
         this.client.auth.onAuthStateChange((event, session) => {
           this.currentUser = session?.user || null;
